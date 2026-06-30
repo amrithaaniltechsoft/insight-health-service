@@ -1,0 +1,54 @@
+[class*="sidebar-dark-"] {
+  background-color: #401ce6;
+}
+
+.layout-navbar-fixed .wrapper .sidebar-dark-primary .brand-link:not([class*="navbar"]) {
+  background-color: #401ce6;
+}
+
+[class*="sidebar-dark"] .brand-link {
+  border-bottom-color: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active {
+  background-color: #542fe8;
+  color: #fff;
+}
+
+[class*="sidebar-dark-"] .nav-sidebar > .nav-item.menu-open > .nav-link,
+[class*="sidebar-dark-"] .nav-sidebar > .nav-item:hover > .nav-link,
+[class*="sidebar-dark-"] .nav-sidebar > .nav-item > .nav-link:focus {
+  background-color: #542fe8;
+  color: #fff;
+}
+
+/* Light sidebar active menu */
+.sidebar-light-primary .nav-sidebar > .nav-item > .nav-link.active {
+  background-color: #542fe8;
+  color: #fff;
+}
+
+[class*="sidebar-light-"] .nav-sidebar > .nav-item.menu-open > .nav-link,
+[class*="sidebar-light-"] .nav-sidebar > .nav-item:hover > .nav-link,
+[class*="sidebar-light-"] .nav-sidebar > .nav-item > .nav-link:focus {
+  background-color: #542fe8;
+  color: #fff;
+}
+
+/* Brand link background color */
+.brand-link {
+  background-color: #542fe8 !important;
+}
+
+.brand-text {
+  color: #fff !important;
+}
+
+[class*="sidebar-light"] .brand-link {
+  background-color: #542fe8 !important;
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+[class*="sidebar-light"] .brand-text {
+  color: #fff !important;
+}
