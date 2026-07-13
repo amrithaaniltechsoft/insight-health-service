@@ -33,6 +33,56 @@ class CmsController extends Controller
         return response()->json(['data' => $data]);
     }
 
+    public function getPublicCmsById($id)
+    {
+        $item = Cms::find($id);
+        if (!$item) {
+            return response()->json(['data' => null], 404);
+        }
+        $imageUrl = null;
+        if ($item->image) {
+            $imageUrl = str_starts_with($item->image, 'http')
+                ? asset('storage/cms/' . basename(parse_url($item->image, PHP_URL_PATH)))
+                : asset($item->image);
+        }
+        return response()->json([
+            'data' => [
+                'id'          => $item->id,
+                'page'        => $item->page,
+                'title'       => $item->title,
+                'description' => $item->description,
+                'image'       => $imageUrl,
+            ]
+        ]);
+    }
+
+    public function getPublicCmsByPage($page)
+    {
+        $item = Cms::where('page', $page)->latest()->first();
+
+        if (!$item) {
+            return response()->json(['data' => null], 404);
+        }
+        $imageUrl = null;
+        if ($item->image) {
+            if (str_starts_with($item->image, 'http')) {
+                $filename = basename(parse_url($item->image, PHP_URL_PATH));
+                $imageUrl = asset('storage/cms/' . $filename);
+            } else {
+                $imageUrl = asset($item->image);
+            }
+        }
+        return response()->json([
+            'data' => [
+                'id'          => $item->id,
+                'page'        => $item->page,
+                'title'       => $item->title,
+                'description' => $item->description,
+                'image'       => $imageUrl,
+            ]
+        ]);
+    }
+
     public function getCmsById($id)
     {
         $item = Cms::findOrFail($id);

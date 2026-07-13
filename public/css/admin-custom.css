@@ -52,3 +52,7 @@
 [class*="sidebar-light"] .brand-text {
   color: #fff !important;
 }
+
+.nav-sidebar .nav-treeview .nav-link p {
+  font-size: 12px;
+}

@@ -11,9 +11,6 @@
             <a href="{{ route('services.admin.index') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left mr-2"></i>Back to Categories
             </a>
-            {{-- <button type="button" class="btn btn-info" data-toggle="modal" data-target="#importServiceModal" title="Import from Excel">
-                <i class="fas fa-file-excel mr-2"></i>Import Excel
-            </button> --}}
             <button type="button" class="btn" style="background-color: #28a745; color: white; border: none;" data-toggle="modal" data-target="#addServiceModal">
                 <i class="fas fa-plus mr-2"></i>Add
             </button>
@@ -41,8 +38,8 @@
                 <thead>
                     <tr>
                         <th>SI</th>
-                        @if($category->id == 4)<th>Title</th>@endif
-                        <th>{{ $category->id == 4 ? 'Subcategory' : 'Title' }}</th>
+                        <th>Title</th>
+                        @if($category->id == 4)<th>Subcategory</th>@endif
                         <th>Price</th>
                         @if($category->id != 4)<th>Image</th>@endif
                         <th>Actions</th>
@@ -54,58 +51,6 @@
         </div>
     </div>
 
-    {{-- <!-- Import Excel Modal -->
-    <div class="modal fade" id="importServiceModal" tabindex="-1" role="dialog" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" role="document" style="max-width:500px;">
-            <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
-                <div class="modal-header" style="background-color: #17a2b8; color: white; border:none;">
-                    <h5 class="modal-title w-100 text-center" style="font-size:1.3rem;">
-                        <i class="fas fa-file-excel mr-2"></i>Import Services from Excel
-                    </h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color:white;position:absolute;right:1rem;">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <form action="{{ route('services.admin.import', $category->id) }}" method="POST" enctype="multipart/form-data">
-                    @csrf
-                    <div class="modal-body" style="padding:24px 28px;">
-                        @if($category->id == 4)
-                        <div class="mb-3 p-3" style="background:#f8f9fa;border-radius:8px;font-size:0.85rem;">
-                            <strong style="color:#17a2b8;">Excel columns (header row):</strong><br>
-                            Category, Sub-Category, Title, Rate, Description, Package Include, Turn Around Time
-                        </div>
-                        @else
-                        <div class="mb-3 p-3" style="background:#f8f9fa;border-radius:8px;font-size:0.85rem;">
-                            <strong style="color:#17a2b8;">Excel columns order:</strong><br>
-                            1. Service Name <span class="text-danger">*</span><br>
-                            2. Price<br>
-                            3. Appointment<br>
-                            4. Service Overview<br>
-                            5. FAQ Link<br>
-                            6. Video Link<br>
-                            7. Description<br>
-                            8. Description 2
-                        </div>
-                        @endif
-                        <div class="form-group">
-                            <label style="color: #6c757d; font-size: 14px; font-weight: 600 !important;">Choose Excel File <span class="text-danger">*</span></label>
-                            <div class="custom-file">
-                                <input type="file" class="custom-file-input" name="file" accept=".xlsx,.xls,.csv" required>
-                                <label class="custom-file-label">Choose file</label>
-                            </div>
-                        </div>
-                        <small class="text-muted">First row should be column headers (will be skipped).</small>
-                    </div>
-                    <div class="modal-footer" style="border-top:none;padding:0 28px 20px;">
-                        <button type="submit" class="btn btn-block" style="background-color:#17a2b8;color:#fff;font-weight:600;border-radius:8px;">
-                            <i class="fas fa-upload mr-2"></i>Import
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div> --}}
-
     <!-- Add Service Modal -->
     <div class="modal fade" id="addServiceModal" tabindex="-1" role="dialog" aria-labelledby="addServiceModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-right" role="document">
@@ -113,8 +58,8 @@
                 <div class="modal-header" style="background-color: #28a745; color: white;">
                     <h5 class="modal-title text-center w-100" id="addServiceModalLabel" style="font-size: 1.5rem;">
                         @if($category->id == 4)Add Blood test
-                        @elseif($category->id == 1)Add Pregnancy Scans
-                        @elseif($category->id == 2)Add Diagnostics
+                        @elseif($category->id == 1)Add Pregnancy Ultrasound Scans
+                        @elseif($category->id == 2)Add General Ultrasound Scans
                         @elseif($category->id == 3)Add Physiotherapy
                         @elseif($category->id == 5)Add Other Diagnostics
                         @else Add Service
@@ -151,26 +96,25 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            @endif
+                            <div class="@if($category->id == 4) col-md-6 @else col-md-4 @endif">
                                 <div class="form-group">
                                     <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Title <span class="text-danger">*</span></label>
+                                    @if($category->id == 4)
                                     <input type="text" class="form-control" name="title" placeholder="Enter title" required>
-                                </div>
-                            </div>
-                            @else
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Title <span class="text-danger">*</span></label>
+                                    @else
                                     <input type="text" class="form-control" name="service_name" placeholder="Enter title" required>
+                                    @endif
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            @if($category->id != 4)
+                            <div class="col-md-4">
                                 <div class="form-group">
                                     <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Price <span class="text-danger">*</span></label>
                                     <input type="number" step="0.01" class="form-control" name="price" placeholder="0.00" required>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <div class="form-group">
                                     <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Appointment <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" name="appointment" placeholder="e.g. Call to book" required>
@@ -219,8 +163,8 @@
                         </div>
                         @if($category->id == 4)
                         <div class="form-group">
-                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Package Include <span class="text-danger">*</span></label>
-                            <textarea class="form-control summernote" name="package_include" rows="4" required></textarea>
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Package Include</label>
+                            <textarea class="form-control summernote" name="package_include" rows="4"></textarea>
                         </div>
                         @else
                         <div class="form-group">
@@ -246,8 +190,8 @@
                         <button type="submit" class="btn" style="background-color: #28a745; color: white; border: none;">
                             <i class="fas fa-save mr-2"></i>
                             @if($category->id == 4)Save Blood test
-                            @elseif($category->id == 1)Save Pregnancy Scans
-                            @elseif($category->id == 2)Save Diagnostics
+                            @elseif($category->id == 1)Save Pregnancy Ultrasound Scans
+                            @elseif($category->id == 2)Save General Ultrasound Scans
                             @elseif($category->id == 3)Save Physiotherapy
                             @elseif($category->id == 5)Save Other Diagnostics
                             @else Save Service
@@ -336,8 +280,8 @@
                 <div class="modal-header" style="background-color: #28a745; color: white;">
                     <h5 class="modal-title text-center w-100" id="editServiceModalLabel" style="font-size: 1.5rem;">
                         @if($category->id == 4)Edit Blood test
-                        @elseif($category->id == 1)Edit Pregnancy Scans
-                        @elseif($category->id == 2)Edit Diagnostics
+                        @elseif($category->id == 1)Edit Pregnancy Ultrasound Scans
+                        @elseif($category->id == 2)Edit General Ultrasound Scans
                         @elseif($category->id == 3)Edit Physiotherapy
                         @elseif($category->id == 5)Edit Other Diagnostics
                         @else Edit Service
@@ -359,8 +303,8 @@
                         <button type="submit" class="btn" style="background-color: #28a745; color: white; border: none;">
                             <i class="fas fa-save mr-2"></i>
                             @if($category->id == 4)Update Blood test
-                            @elseif($category->id == 1)Edit Pregnancy Scans
-                            @elseif($category->id == 2)Edit Diagnostics
+                            @elseif($category->id == 1)Edit Pregnancy Ultrasound Scans
+                            @elseif($category->id == 2)Edit General Ultrasound Scans
                             @elseif($category->id == 3)Edit Physiotherapy
                             @elseif($category->id == 5)Edit Other Diagnostics
                             @else Update Service
@@ -470,14 +414,12 @@
     var isBloodTest = categoryId == 4;
 
     var columns = [
-        { "data": null, "name": "SI" }
+        { "data": null, "name": "SI" },
+        { "data": isBloodTest ? "title" : "display_title", "name": "Title" },
     ];
 
-    if (isBloodTest) {
-        columns.push({ "data": "title" });
+    if (categoryId == 4) {
         columns.push({ "data": "subcategory", "name": "Subcategory" });
-    } else {
-        columns.push({ "data": "display_title", "name": "Title" });
     }
 
     columns.push({ "data": "price" });
@@ -549,12 +491,6 @@
         });
     });
 
-    // Import modal file input
-    $('#importServiceModal').on('change', '.custom-file-input', function() {
-        var fileName = this.files[0]?.name || 'Choose file';
-        $(this).next('.custom-file-label').text(fileName);
-    });
-
     $(document).on('click', '.view-service-btn', function() {
         let id = $(this).data('id');
         $.ajax({
@@ -622,15 +558,15 @@
                     html += '<div class="row"><div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Rate <span class="text-danger">*</span></label><input type="number" step="0.01" class="form-control" name="price" value="' + (service.price || '') + '" required></div></div>';
                     html += '<div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Turn Around Time <span class="text-danger">*</span></label><input type="text" class="form-control" name="turn_around_time" value="' + (service.turn_around_time || '') + '" required></div></div></div>';
                     html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description <span class="text-danger">*</span></label><textarea class="form-control summernote" name="description1" rows="4" required>' + (service.description1 || '') + '</textarea></div>';
-                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Package Include <span class="text-danger">*</span></label><textarea class="form-control summernote" name="package_include" rows="4" required>' + (service.package_include || '') + '</textarea></div>';
+                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Package Include</label><textarea class="form-control summernote" name="package_include" rows="4">' + (service.package_include || '') + '</textarea></div>';
                     $('#editServiceBody').html(html);
                     $('#editSubCategorySelect').val(service.sub_category_id);
                 } else {
                     // Other categories
                     html += '<div class="row">';
-                    html += '<div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Title <span class="text-danger">*</span></label><input type="text" class="form-control" name="service_name" value="' + (service.service_name || '') + '" required></div></div>';
-                    html += '<div class="col-md-3"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Price <span class="text-danger">*</span></label><input type="number" step="0.01" class="form-control" name="price" value="' + (service.price || '') + '" required></div></div>';
-                    html += '<div class="col-md-3"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Appointment <span class="text-danger">*</span></label><input type="text" class="form-control" name="appointment" value="' + (service.appointment || '') + '" required></div></div>';
+                    html += '<div class="col-md-4"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Title <span class="text-danger">*</span></label><input type="text" class="form-control" name="service_name" value="' + (service.service_name || '') + '" required></div></div>';
+                    html += '<div class="col-md-4"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Price <span class="text-danger">*</span></label><input type="number" step="0.01" class="form-control" name="price" value="' + (service.price || '') + '" required></div></div>';
+                    html += '<div class="col-md-4"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Appointment <span class="text-danger">*</span></label><input type="text" class="form-control" name="appointment" value="' + (service.appointment || '') + '" required></div></div>';
                     html += '</div>';
                     html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Service Overview <span class="text-danger">*</span></label><textarea class="form-control" name="service_overview" rows="3" required>' + (service.service_overview || '') + '</textarea></div>';
                     html += '<div class="row"><div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">FAQ Link</label><input type="text" class="form-control" name="faq_link" value="' + (service.faq_link || '') + '"></div></div>';
@@ -809,7 +745,7 @@
     });
 
     // Reload table when service modals close
-    $(document).on('hidden.bs.modal', '#addServiceModal, #importServiceModal, #editServiceModal', function() {
+    $(document).on('hidden.bs.modal', '#addServiceModal, #editServiceModal', function() {
         categoryTable.ajax.reload();
     });
 

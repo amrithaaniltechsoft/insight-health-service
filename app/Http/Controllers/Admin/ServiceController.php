@@ -17,6 +17,142 @@ class ServiceController extends Controller
         return view('services.admin.index', compact('categories'));
     }
 
+    /**
+     * Public API: get all services for a category by its slug.
+     * Returns structured data ready for the Next.js frontend.
+     */
+    public function getPublicServicesBySlug(string $slug)
+    {
+        $category = Category::where('slug', $slug)->first();
+
+        if (!$category) {
+            return response()->json(['error' => 'Category not found'], 404);
+        }
+
+        $services = Service::where('category_id', $category->id)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $API_BASE = config('app.url');
+
+        $data = $services->map(function ($service) use ($API_BASE, $slug) {
+            $imageUrl = null;
+            if ($service->image) {
+                $imageUrl = str_starts_with($service->image, 'http')
+                    ? $service->image
+                    : $API_BASE . '/' . $service->image;
+            }
+
+            $slugSource = $service->title ?? $service->service_name;
+            $serviceSlug = \Illuminate\Support\Str::slug($slugSource);
+
+            return [
+                'id'               => $service->id,
+                'slug'             => $serviceSlug,
+                'title'            => $service->title ?? $service->service_name,
+                'service_name'     => $service->service_name,
+                'service_overview' => $service->service_overview,
+                'price'            => $service->price ? '£' . number_format($service->price, 0) : null,
+                'appointment'      => $service->appointment,
+                'description1'     => $service->description1,
+                'description2'     => $service->description2,
+                'package_include'  => $service->package_include,
+                'turn_around_time' => $service->turn_around_time,
+                'video_link'       => $service->video_link,
+                'faq_link'         => $service->faq_link,
+                'image'            => $imageUrl,
+                'category_slug'    => $slug,
+            ];
+        });
+
+        return response()->json([
+            'category' => [
+                'id'          => $category->id,
+                'name'        => $category->name,
+                'slug'        => $category->slug,
+                'description' => $category->description,
+            ],
+            'services' => $data,
+        ]);
+    }
+
+    /**
+     * Public API: get a single service by category slug + service slug.
+     */
+    public function getPublicServiceBySlug(string $categorySlug, string $serviceSlug)
+    {
+        $category = Category::where('slug', $categorySlug)->first();
+        if (!$category) {
+            return response()->json(['error' => 'Category not found'], 404);
+        }
+
+        // Normalize: collapse multiple dashes like Str::slug does
+        $normalizedSlug = preg_replace('/-+/', '-', $serviceSlug);
+
+        // Match by slugified service_name
+        $services = Service::where('category_id', $category->id)->get();
+        $service = $services->first(function ($s) use ($normalizedSlug) {
+            $slugSource = $s->title ?? $s->service_name;
+            return \Illuminate\Support\Str::slug($slugSource) === $normalizedSlug;
+        });
+
+        if (!$service) {
+            return response()->json(['error' => 'Service not found'], 404);
+        }
+
+        $API_BASE = config('app.url');
+        $imageUrl = null;
+        if ($service->image) {
+            $imageUrl = str_starts_with($service->image, 'http')
+                ? $service->image
+                : $API_BASE . '/' . $service->image;
+        }
+
+        // Parse package_include into inclusions array (strip HTML, split by line)
+        $inclusions = [];
+        if ($service->package_include) {
+            $inclusions = collect(
+                preg_split('/\r?\n|<br\s*\/?>/i',
+                    strip_tags($service->package_include)
+                )
+            )->map(fn($l) => trim($l))->filter()->values()->toArray();
+        }
+
+        // Fetch FAQs for this category
+        $faqs = \App\Models\Faq::where('category_id', $category->id)
+            ->orderBy('order')->orderBy('created_at')
+            ->get(['question', 'answer'])
+            ->map(fn($f) => ['q' => $f->question, 'a' => $f->answer]);
+
+        return response()->json([
+            'service' => [
+                'id'               => $service->id,
+                'slug'             => \Illuminate\Support\Str::slug($service->service_name),
+                'title'            => $service->title ?? $service->service_name,
+                'service_name'     => $service->service_name,
+                'service_overview' => $service->service_overview,
+                'price'            => $service->price ? '£' . number_format($service->price, 0) : null,
+                'appointment'      => $service->appointment,
+                'description1'     => $service->description1,
+                'description2'     => $service->description2,
+                'package_include'  => $service->package_include,
+                'inclusions'       => $inclusions,
+                'turn_around_time' => $service->turn_around_time,
+                'video_link'       => $service->video_link,
+                'faq_link'         => $service->faq_link,
+                'image'            => $imageUrl,
+                'category_slug'    => $categorySlug,
+            ],
+            'category' => [
+                'id'               => $category->id,
+                'name'             => $category->name,
+                'slug'             => $category->slug,
+                'description'      => $category->description,
+            ],
+            'faqs' => $faqs,
+        ]);
+    }
+
     public function getServices()
     {
         $categories = Category::withCount('services')->orderBy('id')->get();
@@ -40,7 +176,7 @@ class ServiceController extends Controller
 
     public function getCategoryServices($categoryId)
     {
-        $services = Service::where('category_id', $categoryId)->orderBy('created_at', 'desc')->get();
+        $services = Service::with('subCategory')->where('category_id', $categoryId)->orderBy('created_at', 'desc')->get();
         $data = [];
         foreach ($services as $service) {
             $imageHtml = '-';
@@ -51,7 +187,7 @@ class ServiceController extends Controller
             $data[] = [
                 'id' => $service->id,
                 'title' => $service->title ?? '-',
-                'subcategory' => $service->service_name,
+                'subcategory' => $service->subCategory ? $service->subCategory->name : ($service->service_name ?? '-'),
                 'display_title' => $service->title ?? $service->service_name,
                 'price' => $service->price ? number_format($service->price, 2) : '-',
                 'image_html' => $imageHtml,
@@ -161,7 +297,7 @@ class ServiceController extends Controller
             $rules['title'] = 'required|string|max:255';
             $rules['turn_around_time'] = 'required|string|max:255';
             $rules['description1'] = 'required|string';
-            $rules['package_include'] = 'required|string';
+            $rules['package_include'] = 'nullable|string';
             $rules['appointment'] = 'nullable|string|max:255';
             $rules['service_overview'] = 'nullable|string';
         } else {
@@ -177,17 +313,26 @@ class ServiceController extends Controller
             $validated['image'] = 'storage/' . $imagePath;
         }
 
-        if ($validated['category_id'] == 4 && $request->filled('sub_category_id')) {
+        if ($request->filled('sub_category_id')) {
             $subCategory = SubCategory::findOrFail($request->sub_category_id);
-            $validated['service_name'] = $subCategory->name;
             $validated['sub_category_id'] = $subCategory->id;
+            if ($validated['category_id'] == 4) {
+                $validated['service_name'] = $subCategory->name;
+            } else {
+                if (empty($validated['title'])) {
+                    $validated['title'] = $validated['service_name'];
+                }
+            }
         } else {
             $subCategory = SubCategory::create([
                 'category_id' => $validated['category_id'],
-                'name' => $validated['service_name'],
+                'name' => $validated['service_name'] ?? 'General',
                 'order' => 0,
             ]);
             $validated['sub_category_id'] = $subCategory->id;
+            if (empty($validated['title'])) {
+                $validated['title'] = $validated['service_name'] ?? 'General';
+            }
         }
 
         Service::create($validated);
@@ -219,7 +364,8 @@ class ServiceController extends Controller
         $errors = [];
 
         $sanitizePrice = function ($val) {
-            return preg_replace('/[^0-9.]/', '', $val ?? '');
+            $cleaned = preg_replace('/[^0-9.]/', '', $val ?? '');
+            return $cleaned === '' ? null : $cleaned;
         };
 
         foreach ($rows as $i => $row) {
@@ -230,9 +376,9 @@ class ServiceController extends Controller
                 if ($categoryId == 4) {
                     // Blood Tests: Category, Sub-Category, Title, Rate, Description, Package Include, Turn Around Time
                     $subCategoryName = $row[$colMap['sub-category'] ?? $colMap['subcategory'] ?? -1] ?? '';
+                    $title = $row[$colMap['title'] ?? -1] ?? '';
                     if (empty($subCategoryName)) {
-                        $errors[] = "Row $rowIndex: Sub-Category is required.";
-                        continue;
+                        $subCategoryName = !empty($title) ? $title : 'General';
                     }
 
                     $subCategory = SubCategory::firstOrCreate(
@@ -240,7 +386,7 @@ class ServiceController extends Controller
                         ['order' => 0]
                     );
 
-                    $title = $row[$colMap['title'] ?? -1] ?? '';
+                    $title = empty($title) ? $subCategoryName : $title;
 
                     // Duplicate check: same category + sub_category + title
                     $exists = Service::where('category_id', $categoryId)
@@ -314,7 +460,6 @@ class ServiceController extends Controller
         if (!empty($errors)) {
             $message .= ' Errors: ' . implode(' | ', $errors);
         }
-
         return redirect()->back()->with('success', $message);
     }
 
@@ -341,7 +486,7 @@ class ServiceController extends Controller
             $rules['title'] = 'required|string|max:255';
             $rules['turn_around_time'] = 'required|string|max:255';
             $rules['description1'] = 'required|string';
-            $rules['package_include'] = 'required|string';
+            $rules['package_include'] = 'nullable|string';
             $rules['appointment'] = 'nullable|string|max:255';
             $rules['service_overview'] = 'nullable|string';
         } else {
@@ -357,10 +502,16 @@ class ServiceController extends Controller
             $validated['image'] = 'storage/' . $imagePath;
         }
 
-        if ($validated['category_id'] == 4 && $request->filled('sub_category_id')) {
+        if ($request->filled('sub_category_id')) {
             $subCategory = SubCategory::findOrFail($request->sub_category_id);
-            $validated['service_name'] = $subCategory->name;
             $validated['sub_category_id'] = $subCategory->id;
+            if ($validated['category_id'] == 4) {
+                $validated['service_name'] = $subCategory->name;
+            } else {
+                if (empty($validated['title'])) {
+                    $validated['title'] = $validated['service_name'];
+                }
+            }
         } else {
             $subCategory = $service->sub_category_id
                 ? SubCategory::find($service->sub_category_id)
@@ -380,6 +531,9 @@ class ServiceController extends Controller
                 ]);
                 $validated['sub_category_id'] = $subCategory->id;
             }
+            if (empty($validated['title'])) {
+                $validated['title'] = $validated['service_name'];
+            }
         }
 
         $service->update($validated);
@@ -389,16 +543,7 @@ class ServiceController extends Controller
     public function destroy($id)
     {
         $service = Service::findOrFail($id);
-
-        $subCategory = $service->sub_category_id
-            ? SubCategory::find($service->sub_category_id)
-            : SubCategory::where('category_id', $service->category_id)->where('name', $service->service_name)->first();
-
         $service->delete();
-
-        if ($subCategory) {
-            $subCategory->delete();
-        }
 
         if (request()->ajax()) {
             return response()->json(['success' => true]);

@@ -108,4 +108,26 @@ class ShopController extends Controller
 
         return redirect()->route('shops.admin.index')->with('success', 'Shop product deleted successfully!');
     }
+
+    public function apiIndex()
+    {
+        $shops = Shop::orderBy('created_at', 'desc')->get();
+        $data = [];
+        foreach ($shops as $shop) {
+            $imageUrl = null;
+            if ($shop->image) {
+                $imageUrl = str_starts_with($shop->image, 'http') ? $shop->image : asset($shop->image);
+            }
+            $data[] = [
+                'id' => $shop->id,
+                'name' => $shop->product_name,
+                'price' => '£' . number_format($shop->price, 2),
+                'image' => $imageUrl,
+                'category' => $shop->category,
+                'description' => $shop->description,
+            ];
+        }
+        return response()->json($data);
+    }
+    
 }

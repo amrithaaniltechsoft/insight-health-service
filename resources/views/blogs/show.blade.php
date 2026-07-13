@@ -18,6 +18,7 @@
 @section('content')
 <div class="row">
     <div class="col-md-8">
+        
         <div class="card">
             <div class="row no-gutters">
                 @if($blog->image)
@@ -38,6 +39,7 @@
             </div>
         </div>
 
+        
         <div class="card mt-3">
             <div class="card-header">
                 <h5 class="card-title mb-0">SEO Information</h5>
@@ -57,6 +59,7 @@
                 </div>
             </div>
         </div>
+
     </div>
 
     <div class="col-md-4">

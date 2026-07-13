@@ -34,4 +34,29 @@ class ContactController extends Controller
         $contact->update($validated);
         return redirect()->route('contacts.admin.index')->with('success', 'Contact updated successfully!');
     }
+
+    public function getPublicContact()
+    {
+        $contact = Contact::first();
+        if (!$contact) {
+            return response()->json([
+                'contact1' => '01922 351933',
+                'contact2' => '07777 138 166',
+                'email' => 'bookings@insighthealthservices.co.uk',
+                'address' => '1a Walsall Rd, Walsall WS5 4QL, United Kingdom',
+                'mon_fri' => '08:00 - 21:00',
+                'saturday' => '08:00 - 21:00',
+                'sunday' => '08:00 - 21:00',
+            ]);
+        }
+        return response()->json([
+            'contact1' => $contact->contact1,
+            'contact2' => $contact->contact2,
+            'email' => $contact->email,
+            'address' => $contact->address,
+            'mon_fri' => $contact->mon_fri,
+            'saturday' => $contact->saturday,
+            'sunday' => $contact->sunday,
+        ]);
+    }
 }

@@ -396,59 +396,65 @@
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
-<script>
-    // Initialize DataTables with AJAX
-    $(document).ready(function() {
-        let table = $('#blogsTable').DataTable({
-            "processing": true,
-            "serverSide": false,
-            "ajax": {
-                "url": "{{ route('blogs.admin.data') }}",
-                "type": "GET",
-                "cache": false
-            },
-            "columns": [
-                { "data": null, "name": "SI" },
-                { "data": "title" },
-                { "data": "category" },
-                { "data": "image", "name": "Image" },
-                { "data": "id" }
-            ],
-            "columnDefs": [
-                {
-                    "targets": 0,
-                    "orderable": false
+    <script>
+        // Initialize DataTables with AJAX
+        $(document).ready(function() {
+            let table = $('#blogsTable').DataTable({
+                "processing": true,
+                "serverSide": false,
+                "deferLoading": 0, // Do not show any rows until data is loaded via AJAX
+                "ajax": {
+                    "url": "{{ route('blogs.admin.data') }}",
+                    "type": "GET",
+                    "cache": false
                 },
-                {
-                    "targets": 2,
-                    "render": function(data, type, row) {
-                        return '<span class="badge badge-info">' + data + '</span>';
-                    }
-                },
-                {
-                    "targets": 3,
-                    "orderable": false,
-                    "render": function(data, type, row) {
-                        if (data) {
-                            return '<a href="javascript:void(0)" class="blog-image-thumb" data-image="' + data + '"><img src="' + data + '" alt="Blog Image" style="width:60px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;"></a>';
+                "columns": [
+                    { "data": null, "name": "SI" },
+                    { "data": "title" },
+                    { "data": "category" },
+                    { "data": "image", "name": "Image" },
+                    { "data": "id" }
+                ],
+                "columnDefs": [
+                    {
+                        "targets": 0,
+                        "orderable": false
+                    },
+                    {
+                        "targets": 2,
+                        "render": function(data, type, row) {
+                            return '<span class="badge badge-info">' + data + '</span>';
                         }
-                        return '<div style="width:60px;height:40px;background:#f1f3f5;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#adb5bd;"><i class="fas fa-image"></i></div>';
+                    },
+                    {
+                        "targets": 3,
+                        "orderable": false,
+                        "render": function(data, type, row) {
+                            if (data) {
+                                return '<a href="javascript:void(0)" class="blog-image-thumb" data-image="' + data + '"><img src="' + data + '" alt="Blog Image" style="width:60px;height:40px;object-fit:cover;border-radius:4px;cursor:pointer;"></a>';
+                            }
+                            return '<div style="width:60px;height:40px;background:#f1f3f5;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#adb5bd;"><i class="fas fa-image"></i></div>';
+                        }
+                    },
+                    {
+                        "targets": 4,
+                        "orderable": false,
+                        "render": function(data, type, row) {
+                            let viewBtn = '<button type="button" class="btn btn-sm btn-info view-blog-btn" data-id="' + data + '" title="View"><i class="fas fa-eye"></i></button> ';
+                            let editBtn = '<button type="button" class="btn btn-sm btn-warning edit-blog-btn" data-id="' + data + '" title="Edit"><i class="fas fa-edit"></i></button> ';
+                            let deleteBtn = '<button type="button" class="btn btn-sm btn-danger delete-blog-btn" data-id="' + data + '" title="Delete"><i class="fas fa-trash"></i></button>';
+                            return viewBtn + editBtn + deleteBtn;
+                        }
                     }
-                },
-                {
-                    "targets": 4,
-                    "orderable": false,
-                    "render": function(data, type, row) {
-                        let viewBtn = '<button type="button" class="btn btn-sm btn-info view-blog-btn" data-id="' + data + '" title="View"><i class="fas fa-eye"></i></button> ';
-                        let editBtn = '<button type="button" class="btn btn-sm btn-warning edit-blog-btn" data-id="' + data + '" title="Edit"><i class="fas fa-edit"></i></button> ';
-                        let deleteBtn = '<button type="button" class="btn btn-sm btn-danger delete-blog-btn" data-id="' + data + '" title="Delete"><i class="fas fa-trash"></i></button>';
-                        return viewBtn + editBtn + deleteBtn;
-                    }
-                }
-            ],
-            "pageLength": 10,
-            "order": [[2, "asc"]]
-        });
+                ],
+                "pageLength": 10,
+                "order": [[2, "asc"]]
+            });
+
+
+
+        // Show table once data is loaded for the first time
+        table.on('xhr', function() { $('#blogsTable').show(); });
 
         // Re-number SI column after each draw (sort, page, etc.)
         table.on('draw.dt', function() {

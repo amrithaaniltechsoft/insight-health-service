@@ -84,6 +84,13 @@ Route::middleware('auth')->prefix('admin/services')->group(function () {
     Route::delete('/{id}', [ServiceController::class, 'destroy'])->name('services.admin.destroy');
 });
 
+// Category Admin Routes (protected)
+use App\Http\Controllers\Admin\CategoryController;
+Route::middleware('auth')->prefix('admin/categories')->group(function () {
+    Route::get('/', [CategoryController::class, 'adminIndex'])->name('categories.admin.index');
+    Route::put('/{id}', [CategoryController::class, 'updateCategory'])->name('categories.admin.update');
+});
+
 // Shop Admin Routes (protected)
 Route::middleware('auth')->prefix('admin/shops')->group(function () {
     Route::get('/', [ShopController::class, 'adminIndex'])->name('shops.admin.index');
@@ -93,6 +100,9 @@ Route::middleware('auth')->prefix('admin/shops')->group(function () {
     Route::put('/{id}', [ShopController::class, 'update'])->name('shops.admin.update');
     Route::delete('/{id}', [ShopController::class, 'destroy'])->name('shops.admin.destroy');
 });
+
+// Shop API Routes (for Next.js frontend)
+Route::get('/api/shop/products', [ShopController::class, 'apiIndex'])->name('shop.api.index');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

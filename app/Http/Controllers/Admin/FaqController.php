@@ -46,6 +46,41 @@ class FaqController extends Controller
         ]);
     }
 
+    public function getPublicFaqs()
+    {
+        $faqs = Faq::with('category')->orderBy('created_at', 'desc')->get();
+        $data = [];
+        foreach ($faqs as $faq) {
+            $data[] = [
+                'q' => $faq->question,
+                'a' => $faq->answer,
+                'category' => $faq->category?->name ?? 'General',
+            ];
+        }
+        return response()->json($data);
+    }
+
+    public function getPublicFaqsBySlug(string $slug)
+    {
+        $category = \App\Models\Category::where('slug', $slug)->first();
+
+        if (!$category) {
+            return response()->json([]);
+        }
+
+        $faqs = Faq::where('category_id', $category->id)
+            ->orderBy('order')
+            ->orderBy('created_at')
+            ->get();
+
+        return response()->json(
+            $faqs->map(fn($faq) => [
+                'q' => $faq->question,
+                'a' => $faq->answer,
+            ])
+        );
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

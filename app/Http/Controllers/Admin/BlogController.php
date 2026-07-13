@@ -29,8 +29,8 @@ class BlogController extends Controller
 
     public function byCategory($categoryId)
     {
-        $category = Category::findOrFail($categoryId);
-        $blogs = $category->blogs()->orderBy('created_at', 'desc')->paginate(9);
+        $category   = Category::findOrFail($categoryId);
+        $blogs      = $category->blogs()->orderBy('created_at', 'desc')->paginate(9);
         $categories = Category::all();
         return view('blogs.index', compact('blogs', 'categories', 'category'));
     }
@@ -68,6 +68,7 @@ class BlogController extends Controller
         // - Old records: stored as full URL e.g. 'http://127.0.0.1:8000/storage/blogs/file.png'
         $imageUrl = null;
         if ($blog->image) {
+
             if (str_starts_with($blog->image, 'http')) {
                 // Legacy full URL — extract filename and rebuild with current server
                 $filename = basename(parse_url($blog->image, PHP_URL_PATH));
@@ -76,6 +77,7 @@ class BlogController extends Controller
                 // Relative path — just wrap with asset()
                 $imageUrl = asset($blog->image);
             }
+            
         }
 
         return response()->json([

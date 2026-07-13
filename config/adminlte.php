@@ -312,40 +312,10 @@ return [
 
         // Sidebar items:
         [
+            'key' => 'services',
             'text' => 'Services',
             'icon' => 'fas fa-fw fa-concierge-bell',
-            'submenu' => [
-                [
-                    'text' => 'Blood Tests',
-                    'url' => 'admin/services/category/4',
-                    'icon' => 'fas fa-fw fa-tint',
-                ],
-                [
-                    'text' => 'Pregnancy Scans',
-                    'url' => 'admin/services/category/1',
-                    'icon' => 'fas fa-fw fa-baby',
-                ],
-                [
-                    'text' => 'Diagnostics',
-                    'url' => 'admin/services/category/2',
-                    'icon' => 'fas fa-fw fa-stethoscope',
-                ],
-                [
-                    'text' => 'Physiotherapy',
-                    'url' => 'admin/services/category/3',
-                    'icon' => 'fas fa-fw fa-dumbbell',
-                ],
-                [
-                    'text' => 'Other Diagnostics',
-                    'url' => 'admin/services/category/5',
-                    'icon' => 'fas fa-fw fa-flask',
-                ],
-                [
-                    'text' => 'All Services',
-                    'url' => 'admin/services',
-                    'icon' => 'fas fa-fw fa-list',
-                ],
-            ],
+            'submenu' => [],
         ],
         [
             'text' => 'Shop',
@@ -372,6 +342,7 @@ return [
             'url' => 'admin/cms',
             'icon' => 'fas fa-fw fa-file-alt',
         ],
+
         ['header' => 'account_settings'],
         [
             'text' => 'profile',
