@@ -32,3 +32,5 @@ Route::get('/services/category/{slug}', [App\Http\Controllers\Admin\ServiceContr
 Route::get('/services/{categorySlug}/{serviceSlug}', [App\Http\Controllers\Admin\ServiceController::class, 'getPublicServiceBySlug']);
 Route::get('/cms/page/{page}', [App\Http\Controllers\Admin\CmsController::class, 'getPublicCmsByPage']);
 Route::get('/cms/{id}', [App\Http\Controllers\Admin\CmsController::class, 'getPublicCmsById']);
+Route::get('/reviews', [App\Http\Controllers\ReviewApiController::class, 'index']);
+Route::post('/enquiries', [App\Http\Controllers\EnquiryApiController::class, 'store']);

@@ -48,13 +48,14 @@ class FaqController extends Controller
 
     public function getPublicFaqs()
     {
-        $faqs = Faq::with('category')->orderBy('created_at', 'desc')->get();
+        $faqs = Faq::with('category', 'subCategory')->orderBy('created_at', 'desc')->get();
         $data = [];
         foreach ($faqs as $faq) {
             $data[] = [
                 'q' => $faq->question,
                 'a' => $faq->answer,
                 'category' => $faq->category?->name ?? 'General',
+                'sub_category' => $faq->subCategory?->name ?? null,
             ];
         }
         return response()->json($data);
