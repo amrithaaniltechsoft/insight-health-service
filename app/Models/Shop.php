@@ -7,4 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class Shop extends Model
 {
     protected $fillable = ['category', 'product_name', 'price', 'description', 'image'];
+
+    public function colors()
+    {
+        return $this->hasMany(ShopColor::class);
+    }
 }

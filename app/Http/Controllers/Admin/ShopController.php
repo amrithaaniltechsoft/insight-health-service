@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Shop;
+use App\Models\ShopColor;
 use Illuminate\Http\Request;
 
 class ShopController extends Controller
@@ -64,15 +65,29 @@ class ShopController extends Controller
             'product_name' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
             'description' => 'nullable|string',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*.color_name' => 'required|string|max:255',
+            'colors.*.image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
 
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('shops', 'public');
-            $validated['image'] = 'storage/' . $imagePath;
+        $shop = Shop::create($validated);
+
+        // Handle colors and their images
+        if ($request->has('colors')) {
+            foreach ($request->colors as $colorData) {
+                if (isset($colorData['color_name']) && !empty($colorData['color_name'])) {
+                    $colorData['shop_id'] = $shop->id;
+                    
+                    if (isset($colorData['image']) && $colorData['image'] instanceof \Illuminate\Http\UploadedFile) {
+                        $imagePath = $colorData['image']->store('shop_colors', 'public');
+                        $colorData['image'] = 'storage/' . $imagePath;
+                    }
+                    
+                    ShopColor::create($colorData);
+                }
+            }
         }
 
-        Shop::create($validated);
         return redirect()->route('shops.admin.index')->with('success', 'Shop product created successfully!');
     }
 
@@ -85,15 +100,32 @@ class ShopController extends Controller
             'product_name' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
             'description' => 'nullable|string',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*.color_name' => 'required|string|max:255',
+            'colors.*.image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
 
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('shops', 'public');
-            $validated['image'] = 'storage/' . $imagePath;
+        $shop->update($validated);
+
+        // Handle colors and their images
+        if ($request->has('colors')) {
+            // Delete existing colors
+            $shop->colors()->delete();
+            
+            foreach ($request->colors as $colorData) {
+                if (isset($colorData['color_name']) && !empty($colorData['color_name'])) {
+                    $colorData['shop_id'] = $shop->id;
+                    
+                    if (isset($colorData['image']) && $colorData['image'] instanceof \Illuminate\Http\UploadedFile) {
+                        $imagePath = $colorData['image']->store('shop_colors', 'public');
+                        $colorData['image'] = 'storage/' . $imagePath;
+                    }
+                    
+                    ShopColor::create($colorData);
+                }
+            }
         }
 
-        $shop->update($validated);
         return redirect()->route('shops.admin.index')->with('success', 'Shop product updated successfully!');
     }
 

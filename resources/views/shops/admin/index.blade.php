@@ -100,18 +100,31 @@
                             <textarea class="form-control summernote" id="add_description" name="description" rows="4" placeholder="Enter product description"></textarea>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="add_image" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Image <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <div class="custom-file">
-                                            <input type="file" class="custom-file-input" id="add_image" name="image" accept="image/*" required>
-                                            <label class="custom-file-label" for="add_image">Choose file</label>
+                        <div class="form-group">
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Product Colors</label>
+                            <div id="add_colors_container">
+                                <div class="color-row mb-2">
+                                    <div class="row">
+                                        <div class="col-md-5">
+                                            <input type="text" class="form-control" name="colors[0][color_name]" placeholder="Color Name (e.g., Pink, Blue)">
+                                        </div>
+                                        <div class="col-md-5">
+                                            <div class="custom-file">
+                                                <input type="file" class="custom-file-input" name="colors[0][image]" accept="image/*">
+                                                <label class="custom-file-label">Choose color image</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-danger btn-sm remove-color-btn" style="display: none;">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                            <button type="button" class="btn btn-sm btn-info mt-2" id="add_color_btn" onclick="addNewColorRow(); event.preventDefault(); event.stopPropagation(); return false;">
+                                <i class="fas fa-plus mr-1"></i>Add Color
+                            </button>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -170,30 +183,37 @@
                             <textarea class="form-control summernote" id="edit_description_{{ $shop->id }}" name="description" rows="4">{{ $shop->description }}</textarea>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="edit_image_{{ $shop->id }}" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Image</label>
-                                    <div class="input-group">
-                                        <div class="custom-file">
-                                            <input type="file" class="custom-file-input" id="edit_image_{{ $shop->id }}" name="image" accept="image/*">
-                                            <label class="custom-file-label" for="edit_image_{{ $shop->id }}">Choose file</label>
+                        <div class="form-group">
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Product Colors</label>
+                            <div id="edit_colors_container_{{ $shop->id }}">
+                                @foreach($shop->colors ?? [] as $index => $color)
+                                <div class="color-row mb-2">
+                                    <div class="row">
+                                        <div class="col-md-5">
+                                            <input type="text" class="form-control" name="colors[{{ $index }}][color_name]" value="{{ $color->color_name }}" placeholder="Color Name (e.g., Pink, Blue)">
+                                        </div>
+                                        <div class="col-md-5">
+                                            <div class="custom-file">
+                                                <input type="file" class="custom-file-input" name="colors[{{ $index }}][image]" accept="image/*">
+                                                <label class="custom-file-label">Choose color image</label>
+                                            </div>
+                                            @if($color->image)
+                                                <small class="d-block text-muted mt-1">Current: <a href="{{ str_starts_with($color->image, 'http') ? $color->image : asset($color->image) }}" target="_blank">View</a></small>
+                                            @endif
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-danger btn-sm remove-color-btn">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
+                                @endforeach
                             </div>
+                            <button type="button" class="btn btn-sm btn-info mt-2 add-color-btn" data-target="edit_colors_container_{{ $shop->id }}">
+                                <i class="fas fa-plus mr-1"></i>Add Color
+                            </button>
                         </div>
-
-                        @if($shop->image)
-                            <div class="row">
-                                <div class="col-md-12">
-                                    <div class="mb-3">
-                                        <small class="d-block text-muted mb-2">Current image:</small>
-                                        <img src="{{ str_starts_with($shop->image, 'http') ? $shop->image : asset($shop->image) }}" alt="{{ $shop->product_name }}" class="img-fluid" style="max-height: 150px;">
-                                    </div>
-                                </div>
-                            </div>
-                        @endif
                     </div>
                     <div class="modal-footer">
                         <button type="submit" class="btn" style="background-color: #28a745; color: white; border: none;">
@@ -291,6 +311,54 @@
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 <script>
+    // Function to add new color row (defined outside document.ready for global access)
+    function addNewColorRow() {
+        let container = $('#add_colors_container');
+        let colorCount = container.find('.color-row').length;
+        let newRow = `
+            <div class="color-row mb-2">
+                <div class="row">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" name="colors[${colorCount}][color_name]" placeholder="Color Name (e.g., Pink, Blue)">
+                    </div>
+                    <div class="col-md-5">
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" name="colors[${colorCount}][image]" accept="image/*">
+                            <label class="custom-file-label">Choose color image</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-color-btn">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.append(newRow);
+        updateRemoveButtons(container);
+    }
+
+    function updateRemoveButtons(container) {
+        let rows = container.find('.color-row');
+        rows.each(function() {
+            let removeBtn = $(this).find('.remove-color-btn');
+            if (rows.length > 1) {
+                removeBtn.show();
+            } else {
+                removeBtn.hide();
+            }
+        });
+    }
+
+    function reindexColorRows(container) {
+        let rows = container.find('.color-row');
+        rows.each(function(index) {
+            $(this).find('input[name*="color_name"]').attr('name', 'colors[' + index + '][color_name]');
+            $(this).find('input[name*="image"]').attr('name', 'colors[' + index + '][image]');
+        });
+    }
+
     $(document).ready(function() {
         let table = $('#shopTable').DataTable({
             "processing": true,
@@ -435,5 +503,62 @@
             ['view', ['fullscreen', 'codeview', 'help']]
         ]
     });
+
+    // Handle adding new color row for edit modal
+    $(document).on('click', '.add-color-btn', function() {
+        let containerId = $(this).data('target');
+        let container = $('#' + containerId);
+        let colorCount = container.find('.color-row').length;
+        let newRow = `
+            <div class="color-row mb-2">
+                <div class="row">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" name="colors[${colorCount}][color_name]" placeholder="Color Name (e.g., Pink, Blue)">
+                    </div>
+                    <div class="col-md-5">
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" name="colors[${colorCount}][image]" accept="image/*">
+                            <label class="custom-file-label">Choose color image</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-danger btn-sm remove-color-btn">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.append(newRow);
+        updateRemoveButtons(container);
+    });
+
+    // Handle removing color row
+    $(document).on('click', '.remove-color-btn', function() {
+        $(this).closest('.color-row').remove();
+        let container = $(this).closest('[id^="add_colors_container"], [id^="edit_colors_container"]');
+        updateRemoveButtons(container);
+        reindexColorRows(container);
+    });
+
+    function updateRemoveButtons(container) {
+        let rows = container.find('.color-row');
+        rows.each(function() {
+            let removeBtn = $(this).find('.remove-color-btn');
+            if (rows.length > 1) {
+                removeBtn.show();
+            } else {
+                removeBtn.hide();
+            }
+        });
+    }
+
+    function reindexColorRows(container) {
+        let rows = container.find('.color-row');
+        rows.each(function(index) {
+            $(this).find('input[name*="color_name"]').attr('name', 'colors[' + index + '][color_name]');
+            $(this).find('input[name*="image"]').attr('name', 'colors[' + index + '][image]');
+        });
+    }
 </script>
 @stop
