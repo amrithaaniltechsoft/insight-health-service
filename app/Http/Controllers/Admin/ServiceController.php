@@ -30,7 +30,7 @@ class ServiceController extends Controller
         }
 
         $services = Service::where('category_id', $category->id)
-            ->orderBy('created_at', 'asc')
+            ->orderBy('service_name', 'asc')
             ->get();
 
         $API_BASE = config('app.url');

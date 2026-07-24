@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Enquiry;
+use App\Mail\EnquiryMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
@@ -20,22 +21,11 @@ class EnquiryApiController extends Controller
 
         $enquiry = Enquiry::create($validated);
 
-        $phone = $validated['phone'] ?? 'N/A';
-        $toEmail = env('ENQUIRY_TO_EMAIL', 'techsofttest@gmail.com');
+        $toEmail = env('ENQUIRY_TO_EMAIL', 'bookings@insighthealthservices.co.uk');
         try {
-            Mail::raw(
-                "New enquiry from {$validated['first_name']} {$validated['last_name']}\n" .
-                "Email: {$validated['email']}\n" .
-                "Phone: {$phone}\n\n" .
-                "Message:\n{$validated['message']}",
-                function ($message) use ($toEmail, $validated) {
-                    $message->to($toEmail)
-                            ->subject("Enquiry from {$validated['first_name']} {$validated['last_name']}")
-                            ->replyTo($validated['email']);
-                }
-            );
+            Mail::to($toEmail)->send(new EnquiryMail($validated));
         } catch (\Exception $e) {
-            // Email is best-effort; still return success
+            // Email is best-effort; enquiry is still saved
         }
 
         return response()->json(['success' => true, 'message' => 'Enquiry submitted successfully.'], 201);
