@@ -89,11 +89,17 @@ class ServiceController extends Controller
         // Normalize: collapse multiple dashes like Str::slug does
         $normalizedSlug = preg_replace('/-+/', '-', $serviceSlug);
 
-        // Match by slugified service_name
+        // Match by slugified service_name, title, or slug
         $services = Service::where('category_id', $category->id)->get();
         $service = $services->first(function ($s) use ($normalizedSlug) {
-            $slugSource = $s->title ?? $s->service_name;
-            return \Illuminate\Support\Str::slug($slugSource) === $normalizedSlug;
+            $slugSource1 = \Illuminate\Support\Str::slug($s->title ?? '');
+            $slugSource2 = \Illuminate\Support\Str::slug($s->service_name ?? '');
+            return $slugSource1 === $normalizedSlug 
+                || $slugSource2 === $normalizedSlug 
+                || str_contains($slugSource1, $normalizedSlug) 
+                || str_contains($normalizedSlug, $slugSource1)
+                || str_contains($slugSource2, $normalizedSlug)
+                || str_contains($normalizedSlug, $slugSource2);
         });
 
         if (!$service) {
@@ -118,11 +124,62 @@ class ServiceController extends Controller
             )->map(fn($l) => trim($l))->filter()->values()->toArray();
         }
 
-        // Fetch FAQs for this category
-        $faqs = \App\Models\Faq::where('category_id', $category->id)
-            ->orderBy('order')->orderBy('created_at')
-            ->get(['question', 'answer'])
-            ->map(fn($f) => ['q' => $f->question, 'a' => $f->answer]);
+        // Fetch FAQs specifically assigned to this service's subcategory
+        $subCatId = $service->sub_category_id;
+        $subCatName = $service->subCategory?->name ?? $service->service_name ?? $service->title;
+
+        // Find matching subcategories by ID or name
+        $matchingSubCategoryIds = \App\Models\SubCategory::where('category_id', $category->id)
+            ->where(function ($q) use ($subCatId, $subCatName, $service) {
+                if ($subCatId) {
+                    $q->orWhere('id', $subCatId);
+                }
+                if ($subCatName) {
+                    $q->orWhere('name', 'LIKE', '%' . trim($subCatName) . '%');
+                }
+                if ($service->service_name) {
+                    $q->orWhere('name', 'LIKE', '%' . trim($service->service_name) . '%');
+                }
+                if ($service->title) {
+                    $q->orWhere('name', 'LIKE', '%' . trim($service->title) . '%');
+                }
+            })
+            ->pluck('id')
+            ->toArray();
+
+        // Also check Faq subcategories whose name matches the service/subcategory name
+        $faqSubCatIds = \App\Models\Faq::where('category_id', $category->id)
+            ->whereNotNull('sub_category_id')
+            ->pluck('sub_category_id')
+            ->unique();
+
+        $matchingFaqSubCatIds = \App\Models\SubCategory::whereIn('id', $faqSubCatIds)
+            ->get()
+            ->filter(function ($sc) use ($subCatName, $service) {
+                $scName = strtolower(trim($sc->name));
+                $sName = strtolower(trim($service->service_name ?? ''));
+                $tName = strtolower(trim($service->title ?? ''));
+                $targetName = strtolower(trim($subCatName ?? ''));
+
+                return $scName !== '' && (
+                    str_contains($sName, $scName) || str_contains($scName, $sName) ||
+                    str_contains($tName, $scName) || str_contains($scName, $tName) ||
+                    str_contains($targetName, $scName) || str_contains($scName, $targetName)
+                );
+            })
+            ->pluck('id')
+            ->toArray();
+
+        $allSubCatIds = array_unique(array_merge($matchingSubCategoryIds, $matchingFaqSubCatIds));
+
+        $faqs = collect();
+        if (!empty($allSubCatIds)) {
+            $faqs = \App\Models\Faq::where('category_id', $category->id)
+                ->whereIn('sub_category_id', $allSubCatIds)
+                ->orderBy('created_at', 'asc')
+                ->get(['question', 'answer'])
+                ->map(fn($f) => ['q' => $f->question, 'a' => $f->answer]);
+        }
 
         return response()->json([
             'service' => [

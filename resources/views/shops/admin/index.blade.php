@@ -115,7 +115,7 @@
                                             </div>
                                         </div>
                                         <div class="col-md-2">
-                                            <button type="button" class="btn btn-danger btn-sm remove-color-btn" style="display: none;">
+                                            <button type="button" class="btn btn-danger btn-sm" onclick="removeAddColorRow(this)" style="display: none;">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
@@ -188,6 +188,8 @@
                             <div id="edit_colors_container_{{ $shop->id }}">
                                 @foreach($shop->colors ?? [] as $index => $color)
                                 <div class="color-row mb-2">
+                                    <input type="hidden" name="colors[{{ $index }}][id]" value="{{ $color->id }}">
+                                    <input type="hidden" name="colors[{{ $index }}][existing_image]" value="{{ $color->image }}">
                                     <div class="row">
                                         <div class="col-md-5">
                                             <input type="text" class="form-control" name="colors[{{ $index }}][color_name]" value="{{ $color->color_name }}" placeholder="Color Name (e.g., Pink, Blue)">
@@ -202,7 +204,7 @@
                                             @endif
                                         </div>
                                         <div class="col-md-2">
-                                            <button type="button" class="btn btn-danger btn-sm remove-color-btn">
+                                            <button type="button" class="btn btn-danger btn-sm" onclick="removeEditColorRow(this, {{ $shop->id }})">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
@@ -210,7 +212,7 @@
                                 </div>
                                 @endforeach
                             </div>
-                            <button type="button" class="btn btn-sm btn-info mt-2 add-color-btn" data-target="edit_colors_container_{{ $shop->id }}">
+                            <button type="button" class="btn btn-sm btn-info mt-2" onclick="addEditColorRow({{ $shop->id }})">
                                 <i class="fas fa-plus mr-1"></i>Add Color
                             </button>
                         </div>
@@ -328,7 +330,7 @@
                         </div>
                     </div>
                     <div class="col-md-2">
-                        <button type="button" class="btn btn-danger btn-sm remove-color-btn">
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeAddColorRow(this)">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -339,10 +341,20 @@
         updateRemoveButtons(container);
     }
 
+    function removeAddColorRow(btn) {
+        let row = $(btn).closest('.color-row');
+        if (row) row.remove();
+        let container = document.getElementById('add_colors_container');
+        if (container) {
+            updateRemoveButtons(container);
+            reindexColorRows(container);
+        }
+    }
+
     function updateRemoveButtons(container) {
-        let rows = container.find('.color-row');
+        let rows = $(container).find('.color-row');
         rows.each(function() {
-            let removeBtn = $(this).find('.remove-color-btn');
+            let removeBtn = $(this).find('button[onclick*="remove"]');
             if (rows.length > 1) {
                 removeBtn.show();
             } else {
@@ -352,10 +364,12 @@
     }
 
     function reindexColorRows(container) {
-        let rows = container.find('.color-row');
+        let rows = $(container).find('.color-row');
         rows.each(function(index) {
-            $(this).find('input[name*="color_name"]').attr('name', 'colors[' + index + '][color_name]');
-            $(this).find('input[name*="image"]').attr('name', 'colors[' + index + '][image]');
+            $(this).find('input[name*="[id]"]').attr('name', 'colors[' + index + '][id]');
+            $(this).find('input[name*="[existing_image]"]').attr('name', 'colors[' + index + '][existing_image]');
+            $(this).find('input[name*="[color_name]"]').attr('name', 'colors[' + index + '][color_name]');
+            $(this).find('input[name*="[image]"]').attr('name', 'colors[' + index + '][image]');
         });
     }
 
@@ -480,13 +494,11 @@
         });
     });
 
-    // Custom file input label update
-    document.querySelectorAll('input[type="file"]').forEach(function(input) {
-        input.addEventListener('change', function(e) {
-            let fileName = e.target.files[0]?.name || 'Choose file';
-            let label = e.target.nextElementSibling;
-            if(label) label.textContent = fileName;
-        });
+    // Custom file input label update (delegated for dynamic elements)
+    $(document).on('change', 'input[type="file"]', function(e) {
+        let fileName = e.target.files[0]?.name || 'Choose file';
+        let label = e.target.nextElementSibling;
+        if(label) label.textContent = fileName;
     });
 
     // Initialize Summernote editor
@@ -504,47 +516,47 @@
         ]
     });
 
-    // Handle adding new color row for edit modal
-    $(document).on('click', '.add-color-btn', function() {
-        let containerId = $(this).data('target');
-        let container = $('#' + containerId);
-        let colorCount = container.find('.color-row').length;
-        let newRow = `
-            <div class="color-row mb-2">
-                <div class="row">
-                    <div class="col-md-5">
-                        <input type="text" class="form-control" name="colors[${colorCount}][color_name]" placeholder="Color Name (e.g., Pink, Blue)">
-                    </div>
-                    <div class="col-md-5">
-                        <div class="custom-file">
-                            <input type="file" class="custom-file-input" name="colors[${colorCount}][image]" accept="image/*">
-                            <label class="custom-file-label">Choose color image</label>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <button type="button" class="btn btn-danger btn-sm remove-color-btn">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        container.append(newRow);
-        updateRemoveButtons(container);
-    });
+    // Global functions for edit modal color rows
+    function addEditColorRow(shopId) {
+        var container = document.getElementById('edit_colors_container_' + shopId);
+        if (!container) return;
+        var colorCount = container.querySelectorAll('.color-row').length;
+        var newRow = '<div class="color-row mb-2">' +
+            '<div class="row">' +
+            '<div class="col-md-5">' +
+            '<input type="text" class="form-control" name="colors[' + colorCount + '][color_name]" placeholder="Color Name (e.g., Pink, Blue)">' +
+            '</div>' +
+            '<div class="col-md-5">' +
+            '<div class="custom-file">' +
+            '<input type="file" class="custom-file-input" name="colors[' + colorCount + '][image]" accept="image/*">' +
+            '<label class="custom-file-label">Choose color image</label>' +
+            '</div>' +
+            '</div>' +
+            '<div class="col-md-2">' +
+            '<button type="button" class="btn btn-danger btn-sm" onclick="removeEditColorRow(this, ' + shopId + ')">' +
+            '<i class="fas fa-trash"></i>' +
+            '</button>' +
+            '</div>' +
+            '</div>' +
+            '</div>';
+        container.insertAdjacentHTML('beforeend', newRow);
+        updateRemoveButtons(document.getElementById('edit_colors_container_' + shopId));
+    }
 
-    // Handle removing color row
-    $(document).on('click', '.remove-color-btn', function() {
-        $(this).closest('.color-row').remove();
-        let container = $(this).closest('[id^="add_colors_container"], [id^="edit_colors_container"]');
-        updateRemoveButtons(container);
-        reindexColorRows(container);
-    });
+    function removeEditColorRow(btn, shopId) {
+        var row = btn.closest('.color-row');
+        if (row) row.remove();
+        var container = document.getElementById('edit_colors_container_' + shopId);
+        if (container) {
+            updateRemoveButtons(container);
+            reindexColorRows(container);
+        }
+    }
 
     function updateRemoveButtons(container) {
-        let rows = container.find('.color-row');
+        let rows = $(container).find('.color-row');
         rows.each(function() {
-            let removeBtn = $(this).find('.remove-color-btn');
+            let removeBtn = $(this).find('button[onclick*="remove"]');
             if (rows.length > 1) {
                 removeBtn.show();
             } else {
@@ -553,12 +565,6 @@
         });
     }
 
-    function reindexColorRows(container) {
-        let rows = container.find('.color-row');
-        rows.each(function(index) {
-            $(this).find('input[name*="color_name"]').attr('name', 'colors[' + index + '][color_name]');
-            $(this).find('input[name*="image"]').attr('name', 'colors[' + index + '][image]');
-        });
-    }
+
 </script>
 @stop
