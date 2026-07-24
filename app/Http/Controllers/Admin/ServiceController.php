@@ -94,12 +94,21 @@ class ServiceController extends Controller
         $service = $services->first(function ($s) use ($normalizedSlug) {
             $slugSource1 = \Illuminate\Support\Str::slug($s->title ?? '');
             $slugSource2 = \Illuminate\Support\Str::slug($s->service_name ?? '');
-            return $slugSource1 === $normalizedSlug 
-                || $slugSource2 === $normalizedSlug 
-                || str_contains($slugSource1, $normalizedSlug) 
-                || str_contains($normalizedSlug, $slugSource1)
-                || str_contains($slugSource2, $normalizedSlug)
-                || str_contains($normalizedSlug, $slugSource2);
+
+            // Exact match first (highest priority)
+            if ($slugSource1 === $normalizedSlug || $slugSource2 === $normalizedSlug) {
+                return true;
+            }
+
+            // Fuzzy match — only if slugs are non-empty
+            if ($slugSource1 !== '' && $slugSource2 !== '') {
+                return str_contains($slugSource1, $normalizedSlug) 
+                    || str_contains($normalizedSlug, $slugSource1)
+                    || str_contains($slugSource2, $normalizedSlug)
+                    || str_contains($normalizedSlug, $slugSource2);
+            }
+
+            return false;
         });
 
         if (!$service) {
@@ -197,6 +206,7 @@ class ServiceController extends Controller
                 'turn_around_time' => $service->turn_around_time,
                 'video_link'       => $service->video_link,
                 'faq_link'         => $service->faq_link,
+                'preparation'      => $service->preparation,
                 'image'            => $imageUrl,
                 'category_slug'    => $categorySlug,
             ],
@@ -277,6 +287,7 @@ class ServiceController extends Controller
             'video_link' => $service->video_link,
             'image' => $imageUrl,
             'sub_category_id' => $service->sub_category_id,
+            'preparation' => $service->preparation,
             'category' => $service->category?->name ?? 'N/A',
         ]);
     }
@@ -347,6 +358,7 @@ class ServiceController extends Controller
             'turn_around_time' => 'nullable|string|max:255',
             'video_link' => 'nullable|string|max:255',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'preparation' => 'nullable|string',
         ];
 
         if ($request->category_id == 4) {
@@ -536,6 +548,7 @@ class ServiceController extends Controller
             'turn_around_time' => 'nullable|string|max:255',
             'video_link' => 'nullable|string|max:255',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'preparation' => 'nullable|string',
         ];
 
         if ($request->category_id == 4) {

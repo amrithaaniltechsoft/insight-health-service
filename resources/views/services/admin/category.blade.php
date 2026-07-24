@@ -171,6 +171,10 @@
                             <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description 2</label>
                             <textarea class="form-control summernote" name="description2" rows="4"></textarea>
                         </div>
+                        <div class="form-group">
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Preparation</label>
+                            <textarea class="form-control" name="preparation" rows="3" placeholder="Enter preparation instructions"></textarea>
+                        </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
@@ -342,6 +346,7 @@
                     <div id="viewServiceDescription1" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;"></div>
                     <div id="viewServicePackageInclude" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Package Include:</strong><br> <span></span></div>
                     <div id="viewServiceDescription2" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;"></div>
+                    <div id="viewServicePreparation" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Preparation:</strong><br> <span></span></div>
                     <div id="viewServiceTurnAround" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Turn Around Time:</strong> <span></span></div>
                 </div>
             </div>
@@ -496,7 +501,8 @@
         $.ajax({
             url: '/admin/services/' + id + '/show',
             type: 'GET',
-            success: function(service) {
+            success: function(response) {
+                var service = response.service || response;
                 $('#viewServiceModalLabel').text(service.service_name);
                 $('#viewServiceCategory').text(service.category);
                 $('#viewServicePrice').text(service.price ? service.price : '');
@@ -513,6 +519,11 @@
                     $('#viewServicePackageInclude').hide();
                 }
                 $('#viewServiceDescription2').html(service.description2 || '');
+                if (service.preparation) {
+                    $('#viewServicePreparation').show().find('span').html(service.preparation);
+                } else {
+                    $('#viewServicePreparation').hide();
+                }
                 if (service.turn_around_time) {
                     $('#viewServiceTurnAround').show().find('span').text(service.turn_around_time);
                 } else {
@@ -541,7 +552,8 @@
         $.ajax({
             url: '/admin/services/' + id + '/show',
             type: 'GET',
-            success: function(service) {
+            success: function(response) {
+                var service = response.service || response;
                 $('#editServiceId').val(service.id);
                 $('#editServiceForm').attr('action', '/admin/services/' + service.id);
                 var html = '';
@@ -573,6 +585,7 @@
                     html += '<div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Video Link</label><input type="text" class="form-control" name="video_link" value="' + (service.video_link || '') + '"></div></div></div>';
                     html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description</label><textarea class="form-control summernote" name="description1" rows="4">' + (service.description1 || '') + '</textarea></div>';
                     html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description 2</label><textarea class="form-control summernote" name="description2" rows="4">' + (service.description2 || '') + '</textarea></div>';
+                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Preparation</label><textarea class="form-control" name="preparation" rows="3" placeholder="Enter preparation instructions">' + (service.preparation || '') + '</textarea></div>';
                     html += '<div class="row"><div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Image</label><div class="input-group"><div class="custom-file"><input type="file" class="custom-file-input" name="image" accept="image/*"><label class="custom-file-label">Choose file</label></div></div></div></div></div>';
                     if (service.image) {
                         html += '<div class="row"><div class="col-md-12"><div class="mb-3"><small class="d-block text-muted mb-2">Current image:</small><img src="' + service.image + '" alt="' + service.service_name + '" class="img-fluid" style="max-height: 150px;"></div></div></div>';
