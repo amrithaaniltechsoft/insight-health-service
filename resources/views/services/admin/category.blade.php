@@ -39,7 +39,7 @@
                     <tr>
                         <th>SI</th>
                         <th>Title</th>
-                        @if($category->id == 4)<th>Subcategory</th>@endif
+                        @if($category->id == 4)<th>Subcategory</th><th>Code</th><th>Tube</th>@endif
                         <th>Price</th>
                         @if($category->id != 4)<th>Image</th>@endif
                         <th>Actions</th>
@@ -134,6 +134,20 @@
                                 <div class="form-group">
                                     <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Turn Around Time <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" name="turn_around_time" placeholder="e.g. 24 hours" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Code</label>
+                                    <input type="text" class="form-control" name="code" placeholder="e.g. FBC" maxlength="50">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Tube</label>
+                                    <input type="text" class="form-control" name="tube" placeholder="e.g. EDTA" maxlength="100">
                                 </div>
                             </div>
                         </div>
@@ -342,6 +356,8 @@
                 </div>
                 <div style="max-height:40vh;overflow-y:auto;padding:20px 28px 24px;background:#fafbfc;">
                     <div id="viewServiceTitle" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Title:</strong> <span></span></div>
+                    <div id="viewServiceCode" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Code:</strong> <span></span></div>
+                    <div id="viewServiceTube" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Tube:</strong> <span></span></div>
                     <div id="viewServiceOverview" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;"></div>
                     <div id="viewServiceDescription1" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;"></div>
                     <div id="viewServicePackageInclude" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Package Include:</strong><br> <span></span></div>
@@ -425,6 +441,8 @@
 
     if (categoryId == 4) {
         columns.push({ "data": "subcategory", "name": "Subcategory" });
+        columns.push({ "data": "code", "name": "Code" });
+        columns.push({ "data": "tube", "name": "Tube" });
     }
 
     columns.push({ "data": "price" });
@@ -511,6 +529,16 @@
                 } else {
                     $('#viewServiceTitle').hide();
                 }
+                if (service.code) {
+                    $('#viewServiceCode').show().find('span').text(service.code);
+                } else {
+                    $('#viewServiceCode').hide();
+                }
+                if (service.tube) {
+                    $('#viewServiceTube').show().find('span').text(service.tube);
+                } else {
+                    $('#viewServiceTube').hide();
+                }
                 $('#viewServiceOverview').html(service.service_overview || '');
                 $('#viewServiceDescription1').html(service.description1 || '');
                 if (service.package_include) {
@@ -569,6 +597,8 @@
                     html += '</div>';
                     html += '<div class="row"><div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Rate <span class="text-danger">*</span></label><input type="number" step="0.01" class="form-control" name="price" value="' + (service.price || '') + '" required></div></div>';
                     html += '<div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Turn Around Time <span class="text-danger">*</span></label><input type="text" class="form-control" name="turn_around_time" value="' + (service.turn_around_time || '') + '" required></div></div></div>';
+                    html += '<div class="row"><div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Code</label><input type="text" class="form-control" name="code" value="' + (service.code || '') + '" maxlength="50"></div></div>';
+                    html += '<div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Tube</label><input type="text" class="form-control" name="tube" value="' + (service.tube || '') + '" maxlength="100"></div></div></div>';
                     html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description <span class="text-danger">*</span></label><textarea class="form-control summernote" name="description1" rows="4" required>' + (service.description1 || '') + '</textarea></div>';
                     html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Package Include</label><textarea class="form-control summernote" name="package_include" rows="4">' + (service.package_include || '') + '</textarea></div>';
                     $('#editServiceBody').html(html);
