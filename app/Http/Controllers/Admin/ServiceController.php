@@ -33,6 +33,23 @@ class ServiceController extends Controller
             ->orderBy('service_name', 'asc')
             ->get();
 
+        if ($slug === 'pregnancy-scans') {
+            $order = [
+                'Early Pregnancy Scan',
+                'Reassurance Scan',
+                'Baby Gender Scan',
+                'Anomaly Scan',
+                'Growth and Presentation Scan',
+                'Bronze 4D Ultrasound Package - Hope',
+                'Silver 4D Ultrasound Package - Believe',
+                'Gold 4D Ultrasound Package - Insight',
+            ];
+            $services = $services->sortBy(function ($s) use ($order) {
+                $idx = array_search(strtolower(trim($s->service_name)), array_map('strtolower', $order));
+                return $idx !== false ? $idx : PHP_INT_MAX;
+            })->values();
+        }
+
         $API_BASE = config('app.url');
 
         $data = $services->map(function ($service) use ($API_BASE, $slug) {
