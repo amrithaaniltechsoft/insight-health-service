@@ -7,11 +7,6 @@
         <div class="col-md-8">
             <h1>Manage SEO</h1>
         </div>
-        <div class="col-md-4 text-right">
-            <button type="button" class="btn" style="background-color: #28a745; color: white; border: none;" data-toggle="modal" data-target="#addSeoModal">
-                <i class="fas fa-plus mr-2"></i>Add New SEO
-            </button>
-        </div>
     </div>
 @stop
 
@@ -52,49 +47,6 @@
                 <tbody>
                 </tbody>
             </table>
-        </div>
-    </div>
-
-    <!-- Add SEO Modal -->
-    <div class="modal fade" id="addSeoModal" tabindex="-1" role="dialog" aria-labelledby="addSeoModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-right" role="document">
-            <div class="modal-content">
-                <div class="modal-header" style="background-color: #28a745; color: white;">
-                    <h5 class="modal-title text-center w-100" id="addSeoModalLabel" style="font-size: 1.5rem;">Add New SEO Record</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: white; position: absolute; right: 1rem;">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <form action="{{ route('seos.admin.store') }}" method="POST" id="addSeoForm">
-                    @csrf
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label for="add_page" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Page <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="add_page" name="page" placeholder="e.g., home, about, contact" required maxlength="255">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="add_meta_title" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Title</label>
-                            <input type="text" class="form-control" id="add_meta_title" name="meta_title" placeholder="Enter meta title" maxlength="255">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="add_meta_description" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Description</label>
-                            <textarea class="form-control" id="add_meta_description" name="meta_description" rows="4" placeholder="Enter meta description"></textarea>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="add_meta_keywords" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Keywords</label>
-                            <input type="text" class="form-control" id="add_meta_keywords" name="meta_keywords" placeholder="Enter meta keywords (comma separated)" maxlength="255">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn" style="background-color: #28a745; color: white; border: none;">
-                            <i class="fas fa-save mr-2"></i>Save Record
-                        </button>
-                    </div>
-                </form>
-            </div>
         </div>
     </div>
 
@@ -280,12 +232,9 @@
             $('#editSeoModal' + seoId).modal('show');
         });
 
-        // Reload table when add modal is closed
+        // Reload table when modal is closed
         $(document).on('hidden.bs.modal', '.modal', function() {
-            if($(this).attr('id') === 'addSeoModal') {
-                table.ajax.reload();
-                document.getElementById('addSeoForm').reset();
-            }
+            table.ajax.reload();
         });
     });
 </script>
