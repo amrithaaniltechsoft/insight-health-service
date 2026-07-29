@@ -342,6 +342,11 @@ return [
             'url' => 'admin/cms',
             'icon' => 'fas fa-fw fa-file-alt',
         ],
+        [
+            'text' => 'SEO',
+            'url' => 'admin/seos',
+            'icon' => 'fas fa-fw fa-search',
+        ],
 
         ['header' => 'account_settings'],
         [

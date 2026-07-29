@@ -203,6 +203,22 @@
                             </div>
                         </div>
                         @endif
+                        @if($category->id != 4)
+                        <hr class="my-3">
+                        <h6 style="color:#6c757d;font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:12px;margin-bottom:12px;"><i class="fas fa-search mr-1"></i> SEO / Meta Fields</h6>
+                        <div class="form-group">
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Title</label>
+                            <input type="text" class="form-control" name="meta_title" placeholder="e.g. Full Blood Count Test - Fast Results" maxlength="255">
+                        </div>
+                        <div class="form-group">
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Description</label>
+                            <textarea class="form-control" name="meta_description" rows="2" placeholder="Brief description for search engines..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Keywords</label>
+                            <input type="text" class="form-control" name="meta_keywords" placeholder="e.g. blood test, FBC, health check" maxlength="500">
+                        </div>
+                        @endif
                     </div>
                     <div class="modal-footer">
                         <button type="submit" class="btn" style="background-color: #28a745; color: white; border: none;">
@@ -364,6 +380,11 @@
                     <div id="viewServiceDescription2" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;"></div>
                     <div id="viewServicePreparation" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Preparation:</strong><br> <span></span></div>
                     <div id="viewServiceTurnAround" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Turn Around Time:</strong> <span></span></div>
+                    @if($category->id != 4)
+                    <div id="viewServiceMetaTitle" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Meta Title:</strong> <span></span></div>
+                    <div id="viewServiceMetaDesc" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Meta Description:</strong> <span></span></div>
+                    <div id="viewServiceMetaKeywords" style="font-size:0.95rem;line-height:1.85;color:#374151;margin-bottom:16px;display:none;"><strong>Meta Keywords:</strong> <span></span></div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -557,6 +578,21 @@
                 } else {
                     $('#viewServiceTurnAround').hide();
                 }
+                if (service.meta_title) {
+                    $('#viewServiceMetaTitle').show().find('span').text(service.meta_title);
+                } else {
+                    $('#viewServiceMetaTitle').hide();
+                }
+                if (service.meta_description) {
+                    $('#viewServiceMetaDesc').show().find('span').text(service.meta_description);
+                } else {
+                    $('#viewServiceMetaDesc').hide();
+                }
+                if (service.meta_keywords) {
+                    $('#viewServiceMetaKeywords').show().find('span').text(service.meta_keywords);
+                } else {
+                    $('#viewServiceMetaKeywords').hide();
+                }
                 if (!isBloodTest) {
                     if (service.image) {
                         $('#viewServiceImage').attr('src', service.image).show();
@@ -620,6 +656,10 @@
                     if (service.image) {
                         html += '<div class="row"><div class="col-md-12"><div class="mb-3"><small class="d-block text-muted mb-2">Current image:</small><img src="' + service.image + '" alt="' + service.service_name + '" class="img-fluid" style="max-height: 150px;"></div></div></div>';
                     }
+                    html += '<hr class="my-3"><h6 style="color:#6c757d;font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:12px;margin-bottom:12px;"><i class="fas fa-search mr-1"></i> SEO / Meta Fields</h6>';
+                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Title</label><input type="text" class="form-control" name="meta_title" value="' + (service.meta_title || '') + '" maxlength="255"></div>';
+                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Description</label><textarea class="form-control" name="meta_description" rows="2">' + (service.meta_description || '') + '</textarea></div>';
+                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Keywords</label><input type="text" class="form-control" name="meta_keywords" value="' + (service.meta_keywords || '') + '" maxlength="500"></div>';
                     $('#editServiceBody').html(html);
                 }
                 // Init Summernote on new textareas

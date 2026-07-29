@@ -64,6 +64,9 @@ class ServiceController extends Controller
                 'faq_link'         => $service->faq_link,
                 'image'            => $imageUrl,
                 'category_slug'    => $slug,
+                'meta_title'       => $service->meta_title,
+                'meta_description' => $service->meta_description,
+                'meta_keywords'    => $service->meta_keywords,
             ];
         });
 
@@ -213,6 +216,9 @@ class ServiceController extends Controller
                 'preparation'      => $service->preparation,
                 'image'            => $imageUrl,
                 'category_slug'    => $categorySlug,
+                'meta_title'       => $service->meta_title,
+                'meta_description' => $service->meta_description,
+                'meta_keywords'    => $service->meta_keywords,
             ],
             'category' => [
                 'id'               => $category->id,
@@ -296,6 +302,9 @@ class ServiceController extends Controller
             'image' => $imageUrl,
             'sub_category_id' => $service->sub_category_id,
             'preparation' => $service->preparation,
+            'meta_title' => $service->meta_title,
+            'meta_description' => $service->meta_description,
+            'meta_keywords' => $service->meta_keywords,
             'category' => $service->category?->name ?? 'N/A',
         ]);
     }
@@ -369,6 +378,9 @@ class ServiceController extends Controller
             'video_link' => 'nullable|string|max:255',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'preparation' => 'nullable|string',
+            'meta_title' => 'nullable|string|max:255',
+            'meta_description' => 'nullable|string',
+            'meta_keywords' => 'nullable|string|max:500',
         ];
 
         if ($request->category_id == 4) {
@@ -561,6 +573,9 @@ class ServiceController extends Controller
             'video_link' => 'nullable|string|max:255',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'preparation' => 'nullable|string',
+            'meta_title' => 'nullable|string|max:255',
+            'meta_description' => 'nullable|string',
+            'meta_keywords' => 'nullable|string|max:500',
         ];
 
         if ($request->category_id == 4) {

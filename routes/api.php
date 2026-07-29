@@ -34,3 +34,4 @@ Route::get('/cms/page/{page}', [App\Http\Controllers\Admin\CmsController::class,
 Route::get('/cms/{id}', [App\Http\Controllers\Admin\CmsController::class, 'getPublicCmsById']);
 Route::get('/reviews', [App\Http\Controllers\ReviewApiController::class, 'index']);
 Route::post('/enquiries', [App\Http\Controllers\EnquiryApiController::class, 'store']);
+Route::get('/seos/{page}', [App\Http\Controllers\Admin\SeoController::class, 'getPublicSeoByPage']);
