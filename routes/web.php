@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BlogController;
 use App\Http\Controllers\Admin\CmsController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\SeoController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\ShopController;
 use Illuminate\Support\Facades\Route;
@@ -93,6 +94,16 @@ use App\Http\Controllers\Admin\CategoryController;
 Route::middleware('auth')->prefix('admin/categories')->group(function () {
     Route::get('/', [CategoryController::class, 'adminIndex'])->name('categories.admin.index');
     Route::put('/{id}', [CategoryController::class, 'updateCategory'])->name('categories.admin.update');
+});
+
+// SEO Admin Routes (protected)
+Route::middleware('auth')->prefix('admin/seos')->group(function () {
+    Route::get('/', [SeoController::class, 'adminIndex'])->name('seos.admin.index');
+    Route::get('/data', [SeoController::class, 'getSeos'])->name('seos.admin.data');
+    Route::get('/{id}/show', [SeoController::class, 'getSeoById'])->name('seos.admin.show');
+    Route::post('/', [SeoController::class, 'store'])->name('seos.admin.store');
+    Route::put('/{id}', [SeoController::class, 'update'])->name('seos.admin.update');
+    Route::delete('/{id}', [SeoController::class, 'destroy'])->name('seos.admin.destroy');
 });
 
 // Shop Admin Routes (protected)
