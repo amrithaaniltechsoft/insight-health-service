@@ -35,3 +35,8 @@ Route::get('/cms/{id}', [App\Http\Controllers\Admin\CmsController::class, 'getPu
 Route::get('/reviews', [App\Http\Controllers\ReviewApiController::class, 'index']);
 Route::post('/enquiries', [App\Http\Controllers\EnquiryApiController::class, 'store']);
 Route::get('/seos/{page}', [App\Http\Controllers\Admin\SeoController::class, 'getPublicSeoByPage']);
+
+// Auth API routes
+Route::post('/auth/send-otp', [App\Http\Controllers\Api\AuthController::class, 'sendOtp']);
+Route::post('/auth/verify-otp', [App\Http\Controllers\Api\AuthController::class, 'verifyOtp']);
+Route::post('/auth/register', [App\Http\Controllers\Api\AuthController::class, 'register']);

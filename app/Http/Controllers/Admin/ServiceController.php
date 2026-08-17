@@ -23,7 +23,13 @@ class ServiceController extends Controller
      */
     public function getPublicServicesBySlug(string $slug)
     {
-        $category = Category::where('slug', $slug)->first();
+        $searchSlugs = [$slug];
+        if ($slug === 'servical-screening') {
+            $searchSlugs[] = 'cervical-screening';
+        } elseif ($slug === 'cervical-screening') {
+            $searchSlugs[] = 'servical-screening';
+        }
+        $category = Category::whereIn('slug', $searchSlugs)->first();
 
         if (!$category) {
             return response()->json(['error' => 'Category not found'], 404);
@@ -103,7 +109,13 @@ class ServiceController extends Controller
      */
     public function getPublicServiceBySlug(string $categorySlug, string $serviceSlug)
     {
-        $category = Category::where('slug', $categorySlug)->first();
+        $searchCategorySlugs = [$categorySlug];
+        if ($categorySlug === 'servical-screening') {
+            $searchCategorySlugs[] = 'cervical-screening';
+        } elseif ($categorySlug === 'cervical-screening') {
+            $searchCategorySlugs[] = 'servical-screening';
+        }
+        $category = Category::whereIn('slug', $searchCategorySlugs)->first();
         if (!$category) {
             return response()->json(['error' => 'Category not found'], 404);
         }
