@@ -8,9 +8,9 @@
             <h1>Manage FAQs</h1>
         </div>
         <div class="col-md-6 text-right">
-            <button type="button" class="btn btn-info mr-2" id="importFaqBtn" data-toggle="modal" data-target="#importFaqModal">
+            {{-- <button type="button" class="btn btn-info mr-2" id="importFaqBtn" data-toggle="modal" data-target="#importFaqModal">
                 <i class="fas fa-file-import mr-2"></i>Import Excel/CSV
-            </button>
+            </button> --}}
             <button type="button" class="btn" style="background-color: #28a745; color: white; border: none;" data-toggle="modal" data-target="#addFaqModal">
                 <i class="fas fa-plus mr-2"></i>Add New FAQ
             </button>
