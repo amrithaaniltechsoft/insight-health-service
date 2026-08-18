@@ -4,10 +4,13 @@
 
 @section('content_header')
     <div class="row">
-        <div class="col-md-8">
+        <div class="col-md-6">
             <h1>Manage FAQs</h1>
         </div>
-        <div class="col-md-4 text-right">
+        <div class="col-md-6 text-right">
+            <button type="button" class="btn btn-info mr-2" id="importFaqBtn" data-toggle="modal" data-target="#importFaqModal">
+                <i class="fas fa-file-import mr-2"></i>Import Excel/CSV
+            </button>
             <button type="button" class="btn" style="background-color: #28a745; color: white; border: none;" data-toggle="modal" data-target="#addFaqModal">
                 <i class="fas fa-plus mr-2"></i>Add New FAQ
             </button>
@@ -31,8 +34,17 @@
                     el.classList.remove('show');
                     setTimeout(function() { el.remove(); }, 150);
                 }
-            }, 3000);
+            }, 5000);
         </script>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" id="errorAlert">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            {{ session('error') }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
     @endif
 
     <div class="card">
@@ -212,6 +224,54 @@
             </div>
         </div>
     </div>
+
+    <!-- Import FAQ Modal -->
+    <div class="modal fade" id="importFaqModal" tabindex="-1" role="dialog" aria-labelledby="importFaqModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-md modal-dialog-centered" role="document">
+            <div class="modal-content" style="border:none;border-radius:12px;overflow:hidden;">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title font-weight-bold" id="importFaqModalLabel"><i class="fas fa-file-import mr-2"></i>Import FAQs from Excel / CSV</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form action="{{ route('faqs.admin.import') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-body p-4">
+                        <div class="alert alert-light border mb-3">
+                            <h6 class="font-weight-bold text-dark mb-2"><i class="fas fa-info-circle text-info mr-1"></i> File Guidelines:</h6>
+                            <p class="small text-muted mb-1">Supported formats: <strong>.xlsx, .xls, .csv</strong></p>
+                            <p class="small text-muted mb-2">Column headers in row 1:</p>
+                            <code class="d-block p-2 bg-white border rounded text-dark font-weight-bold mb-3">category | sub_category | question | answer</code>
+                            <p class="small text-muted mb-2"><i class="fas fa-check text-success mr-1"></i> <strong>Category:</strong> Accepts Category Name (e.g. <em>Pregnancy Scans</em>) or Slug. Optional if selected below.</p>
+                            <p class="small text-muted mb-2"><i class="fas fa-check text-success mr-1"></i> <strong>Sub Category:</strong> Optional (leave blank if not applicable).</p>
+                            <a href="{{ route('faqs.admin.sample') }}" class="btn btn-sm btn-outline-info">
+                                <i class="fas fa-download mr-1"></i> Download Sample CSV Template
+                            </a>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="import_category_id" class="font-weight-bold text-secondary">Default Category (Optional)</label>
+                            <select class="form-control" id="import_category_id" name="category_id">
+                                <option value="">-- Detect from File / Select Default --</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                @endforeach
+                            </select>
+                            <small class="form-text text-muted">Used if your file does not include a Category column or for rows with empty category.</small>
+                        </div>
+                        <div class="form-group mb-0">
+                            <label for="import_file" class="font-weight-bold text-secondary">Select Excel or CSV File <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control-file p-2 border rounded" id="import_file" name="import_file" accept=".xlsx,.xls,.csv,.txt" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-info font-weight-bold"><i class="fas fa-upload mr-1"></i> Upload & Import</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('css')
@@ -245,6 +305,10 @@
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 <script>
     $(document).ready(function() {
+        $('#importFaqBtn').on('click', function() {
+            $('#importFaqModal').modal('show');
+        });
+
         let table = $('#faqsTable').DataTable({
             "processing": true,
             "serverSide": false,

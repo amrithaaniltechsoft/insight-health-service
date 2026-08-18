@@ -38,8 +38,10 @@ Route::get('/blogs/category/{categoryId}', [BlogController::class, 'byCategory']
 Route::middleware('auth')->prefix('admin/faqs')->group(function () {
     Route::get('/', [FaqController::class, 'adminIndex'])->name('faqs.admin.index');
     Route::get('/data', [FaqController::class, 'getFaqs'])->name('faqs.admin.data');
+    Route::get('/sample-download', [FaqController::class, 'downloadSample'])->name('faqs.admin.sample');
     Route::get('/{id}/show', [FaqController::class, 'getFaqById'])->name('faqs.admin.show');
     Route::post('/', [FaqController::class, 'store'])->name('faqs.admin.store');
+    Route::post('/import', [FaqController::class, 'importFaqs'])->name('faqs.admin.import');
     Route::put('/{id}', [FaqController::class, 'update'])->name('faqs.admin.update');
     Route::delete('/{id}', [FaqController::class, 'destroy'])->name('faqs.admin.destroy');
 });
