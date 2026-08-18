@@ -15,19 +15,43 @@ class CategoryController extends Controller
      */
     public function getPublicCategories()
     {
-        $categories = Category::orderBy('id')->get();
+        $categories = Category::all();
 
-        $data = $categories->map(function ($category) {
+        $desiredOrder = [
+            'pregnancy-scans',
+            'diagnostics',
+            'msk-scans',
+            'musculoskeletal-ultrasound-scan',
+            'health-mot',
+            'physiotherapy',
+            'blood-tests',
+            'acupuncture',
+            'Acupunctur',
+            'joint-injections',
+            'servical-screening',
+            'cervical-screening'
+        ];
+
+        $sorted = $categories->sortBy(function ($category) use ($desiredOrder) {
+            if (isset($category->sort_order) && (int)$category->sort_order > 0) {
+                return (int)$category->sort_order;
+            }
+            $slugLower = strtolower($category->slug);
+            $index = array_search($slugLower, array_map('strtolower', $desiredOrder));
+            return $index !== false ? ($index + 1) : (900 + $category->id);
+        });
+
+        $data = $sorted->values()->map(function ($category) {
             return [
-                'id'              => $category->id,
-                'name'            => $category->name,
-                'slug'            => $category->slug,
-                'description'     => $category->description,
-                'promo_title'     => $category->promo_title,
+                'id'                => $category->id,
+                'name'              => $category->name,
+                'slug'              => $category->slug,
+                'description'       => $category->description,
+                'promo_title'       => $category->promo_title,
                 'promo_description' => $category->promo_description,
-                'promo_link_text' => $category->promo_link_text,
-                'promo_link_href' => $category->promo_link_href,
-                'promo_bg_type'   => $category->promo_bg_type ?? 'pearl',
+                'promo_link_text'   => $category->promo_link_text,
+                'promo_link_href'   => $category->promo_link_href,
+                'promo_bg_type'     => $category->promo_bg_type ?? 'pearl',
             ];
         });
 
@@ -73,7 +97,31 @@ class CategoryController extends Controller
      */
     public function adminIndex()
     {
-        $categories = Category::orderBy('id')->get();
+        $categories = Category::all();
+        $desiredOrder = [
+            'pregnancy-scans',
+            'diagnostics',
+            'msk-scans',
+            'musculoskeletal-ultrasound-scan',
+            'health-mot',
+            'physiotherapy',
+            'blood-tests',
+            'acupuncture',
+            'Acupunctur',
+            'joint-injections',
+            'servical-screening',
+            'cervical-screening'
+        ];
+
+        $categories = $categories->sortBy(function ($category) use ($desiredOrder) {
+            if (isset($category->sort_order) && (int)$category->sort_order > 0) {
+                return (int)$category->sort_order;
+            }
+            $slugLower = strtolower($category->slug);
+            $index = array_search($slugLower, array_map('strtolower', $desiredOrder));
+            return $index !== false ? ($index + 1) : (900 + $category->id);
+        })->values();
+
         return view('categories.admin.index', compact('categories'));
     }
 

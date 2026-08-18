@@ -100,7 +100,7 @@ class CategorySeeder extends Seeder
                 'promo_bg_type' => 'zinc',
                 'subcategories' => [
                     'Cervical Screening - Coming Soon!',
-                    'Health MOT - Coming Soon!',
+                    'MSK Scans - Coming Soon!',
                 ]
             ],
         ];
