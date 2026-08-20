@@ -40,6 +40,7 @@ Route::get('/seos/{page}', [App\Http\Controllers\Admin\SeoController::class, 'ge
 Route::post('/auth/send-otp', [App\Http\Controllers\Api\AuthController::class, 'sendOtp']);
 Route::post('/auth/verify-otp', [App\Http\Controllers\Api\AuthController::class, 'verifyOtp']);
 Route::post('/auth/register', [App\Http\Controllers\Api\AuthController::class, 'register']);
+Route::put('/auth/profile', [App\Http\Controllers\Api\AuthController::class, 'updateProfile']);
 
 // Isolated Next.js Administration API Routes
 use App\Http\Controllers\AdminApi;

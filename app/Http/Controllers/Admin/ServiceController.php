@@ -67,7 +67,9 @@ class ServiceController extends Controller
             }
 
             $slugSource = $service->title ?? $service->service_name;
-            $serviceSlug = \Illuminate\Support\Str::slug($slugSource);
+            $serviceSlug = in_array($slug, ['servical-screening', 'cervical-screening'], true)
+                ? 'cervical-screening'
+                : \Illuminate\Support\Str::slug($slugSource);
 
             return [
                 'id'               => $service->id,
@@ -125,6 +127,9 @@ class ServiceController extends Controller
 
         // Match by slugified service_name, title, or slug
         $services = Service::where('category_id', $category->id)->get();
+        if ($normalizedSlug === 'cervical-screening' && in_array($categorySlug, ['servical-screening', 'cervical-screening'], true)) {
+            $service = $services->first();
+        } else {
         $service = $services->first(function ($s) use ($normalizedSlug) {
             $slugSource1 = \Illuminate\Support\Str::slug($s->title ?? '');
             $slugSource2 = \Illuminate\Support\Str::slug($s->service_name ?? '');
@@ -144,6 +149,7 @@ class ServiceController extends Controller
 
             return false;
         });
+        }
 
         if (!$service) {
             return response()->json(['error' => 'Service not found'], 404);

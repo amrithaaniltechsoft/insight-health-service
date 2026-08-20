@@ -16,10 +16,16 @@ class Customer extends Authenticatable
         'first_name',
         'last_name',
         'gender',
+        'title',
         'dob',
         'phone',
-        'address',
-        'nhs_number',
+        'address_line_1',
+        'address_line_2',
+        'suburb',
+        'city',
+        'state',
+        'zip_code',
+        'country',
         'medical_history',
         'status',
         'password',
@@ -27,7 +33,6 @@ class Customer extends Authenticatable
 
     protected $hidden = [
         'password',
-        'remember_token',
     ];
 
     protected function casts(): array

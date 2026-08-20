@@ -41,7 +41,17 @@ class AuthController extends Controller
             'updated_at' => now(),
         ]);
 
-        Mail::to($email)->send(new SendOtpMail($otp));
+        try {
+            Mail::to($email)->send(new SendOtpMail($otp));
+        } catch (\Throwable $e) {
+            if (config('app.debug')) {
+                return response()->json([
+                    'message' => 'OTP generated (email failed in dev mode).',
+                    'otp'     => $otp,
+                ]);
+            }
+            return response()->json(['message' => 'Failed to send OTP email. Please try again.'], 500);
+        }
 
         return response()->json(['message' => 'OTP sent to your email.']);
     }
@@ -80,6 +90,7 @@ class AuthController extends Controller
         ]);
 
         $customer = Customer::create([
+            'customer_code' => 'CUST-' . rand(1000, 9999),
             'first_name' => $request->first_name,
             'last_name'  => $request->last_name,
             'email'      => $request->email,
@@ -95,6 +106,70 @@ class AuthController extends Controller
                 'first_name' => $customer->first_name,
                 'last_name'  => $customer->last_name,
                 'email'      => $customer->email,
+            ],
+        ]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email'        => 'required|email|max:255',
+            'first_name'   => 'required|string|max:255',
+            'last_name'    => 'required|string|max:255',
+            'gender'       => 'required|string|in:Male,Female,Other',
+            'dob'          => 'required|date',
+            'title'        => 'nullable|string|max:20',
+            'phone'        => 'nullable|string|max:50',
+            'address_line_1' => 'nullable|string|max:500',
+            'address_line_2' => 'nullable|string|max:500',
+            'suburb'       => 'nullable|string|max:255',
+            'city'         => 'nullable|string|max:255',
+            'state'        => 'nullable|string|max:255',
+            'zip_code'     => 'nullable|string|max:50',
+            'country'      => 'nullable|string|max:255',
+        ]);
+
+        $customer = Customer::where('email', $request->email)->first();
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer not found.'], 404);
+        }
+
+        $customer->update([
+            'first_name'    => $request->first_name,
+            'last_name'     => $request->last_name,
+            'gender'        => $request->gender,
+            'dob'           => $request->dob,
+            'title'         => $request->title,
+            'phone'         => $request->phone,
+            'address_line_1' => $request->address_line_1,
+            'address_line_2' => $request->address_line_2,
+            'suburb'        => $request->suburb,
+            'city'          => $request->city,
+            'state'         => $request->state,
+            'zip_code'      => $request->zip_code,
+            'country'       => $request->country,
+        ]);
+
+        return response()->json([
+            'message'  => 'Profile updated successfully.',
+            'customer' => [
+                'id'            => $customer->id,
+                'customer_code' => $customer->customer_code,
+                'first_name'    => $customer->first_name,
+                'last_name'     => $customer->last_name,
+                'email'         => $customer->email,
+                'gender'        => $customer->gender,
+                'title'         => $customer->title,
+                'dob'           => $customer->dob?->format('Y-m-d'),
+                'phone'         => $customer->phone,
+                'address_line_1' => $customer->address_line_1,
+                'address_line_2' => $customer->address_line_2,
+                'suburb'        => $customer->suburb,
+                'city'          => $customer->city,
+                'state'         => $customer->state,
+                'zip_code'      => $customer->zip_code,
+                'country'       => $customer->country,
             ],
         ]);
     }
