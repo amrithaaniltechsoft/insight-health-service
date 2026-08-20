@@ -11,11 +11,17 @@ class Customer extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
+        'customer_code',
         'email',
         'first_name',
         'last_name',
         'gender',
         'dob',
+        'phone',
+        'address',
+        'nhs_number',
+        'medical_history',
+        'status',
         'password',
     ];
 
@@ -23,4 +29,26 @@ class Customer extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'dob' => 'date',
+        ];
+    }
+
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class, 'patient_id');
+    }
+
+    public function clinicalNotes()
+    {
+        return $this->hasMany(ClinicalNote::class, 'patient_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'patient_id');
+    }
 }

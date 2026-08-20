@@ -4,7 +4,7 @@ namespace App\Http\Controllers\AdminApi;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
-use App\Models\Patient;
+use App\Models\Customer;
 use App\Models\Service;
 use App\Models\Staff;
 use Illuminate\Http\Request;
@@ -73,13 +73,13 @@ class AppointmentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        // Find or create patient if integer ID vs code passed
-        $patient = Patient::where('id', $validated['patient_id'])
-            ->orWhere('patient_code', $validated['patient_id'])
+        // Find customer if integer ID vs code passed
+        $patient = Customer::where('id', $validated['patient_id'])
+            ->orWhere('customer_code', $validated['patient_id'])
             ->first();
 
         if (!$patient) {
-            return response()->json(['message' => 'Patient not found'], 404);
+            return response()->json(['message' => 'Customer not found'], 404);
         }
 
         $code = 'APT-' . rand(1000, 9999);

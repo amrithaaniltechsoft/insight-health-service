@@ -63,6 +63,11 @@ Route::prefix('admin')->group(function () {
         Route::get('/patients/{id}', [AdminApi\PatientController::class, 'show']);
         Route::put('/patients/{id}', [AdminApi\PatientController::class, 'update']);
 
+        Route::get('/customers', [AdminApi\PatientController::class, 'index']);
+        Route::post('/customers', [AdminApi\PatientController::class, 'store']);
+        Route::get('/customers/{id}', [AdminApi\PatientController::class, 'show']);
+        Route::put('/customers/{id}', [AdminApi\PatientController::class, 'update']);
+
         Route::get('/clinical-notes/{appointmentId}', [AdminApi\ClinicalNoteController::class, 'showByAppointment']);
         Route::post('/clinical-notes/{appointmentId}', [AdminApi\ClinicalNoteController::class, 'storeOrUpdate']);
 

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\AdminApi;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
-use App\Models\Patient;
+use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\ClinicalNote;
 use Illuminate\Http\Request;
@@ -17,7 +17,7 @@ class OverviewController extends Controller
         $today = Carbon::today();
         
         $todayAppointmentsCount = Appointment::whereDate('appointment_date', $today)->count();
-        $totalPatientsCount = Patient::count();
+        $totalPatientsCount = Customer::count();
         $pendingNotesCount = ClinicalNote::where('status', 'Draft')->count();
         
         $totalRevenue = Payment::where('status', 'Paid')->sum('amount_paid');
@@ -28,10 +28,11 @@ class OverviewController extends Controller
             ->limit(5)
             ->get()
             ->map(function ($apt) {
+                $pName = $apt->patient ? (($apt->patient->first_name . ' ' . $apt->patient->last_name) ?: ($apt->patient->name ?: 'N/A')) : 'N/A';
                 return [
                     'id' => $apt->appointment_code,
-                    'patientName' => $apt->patient ? ($apt->patient->first_name . ' ' . $apt->patient->last_name) : 'N/A',
-                    'service' => $apt->service ? $apt->service->title : 'Health Scan',
+                    'patientName' => trim($pName),
+                    'service' => $apt->service ? ($apt->service->title ?? $apt->service->service_name) : 'Health Scan',
                     'time' => $apt->start_time,
                     'date' => $apt->appointment_date ? $apt->appointment_date->format('Y-m-d') : '',
                     'status' => $apt->status,
