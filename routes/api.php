@@ -39,6 +39,7 @@ Route::get('/seos/{page}', [App\Http\Controllers\Admin\SeoController::class, 'ge
 // Auth API routes
 Route::post('/auth/send-otp', [App\Http\Controllers\Api\AuthController::class, 'sendOtp']);
 Route::post('/auth/verify-otp', [App\Http\Controllers\Api\AuthController::class, 'verifyOtp']);
+Route::post('/auth/check', [App\Http\Controllers\Api\AuthController::class, 'checkCustomer']);
 Route::post('/auth/register', [App\Http\Controllers\Api\AuthController::class, 'register']);
 Route::put('/auth/profile', [App\Http\Controllers\Api\AuthController::class, 'updateProfile']);
 

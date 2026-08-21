@@ -79,6 +79,41 @@ class AuthController extends Controller
         return response()->json(['message' => 'OTP verified successfully.']);
     }
 
+    public function checkCustomer(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email|max:255',
+        ]);
+
+        $customer = Customer::where('email', $request->email)->first();
+
+        if (!$customer) {
+            return response()->json(['exists' => false]);
+        }
+
+        return response()->json([
+            'exists' => true,
+            'customer' => [
+                'id'            => $customer->id,
+                'customer_code' => $customer->customer_code,
+                'first_name'    => $customer->first_name,
+                'last_name'     => $customer->last_name,
+                'email'         => $customer->email,
+                'gender'        => $customer->gender,
+                'title'         => $customer->title,
+                'dob'           => $customer->dob?->format('Y-m-d'),
+                'phone'         => $customer->phone,
+                'address_line_1' => $customer->address_line_1,
+                'address_line_2' => $customer->address_line_2,
+                'suburb'        => $customer->suburb,
+                'city'          => $customer->city,
+                'state'         => $customer->state,
+                'zip_code'      => $customer->zip_code,
+                'country'       => $customer->country,
+            ],
+        ]);
+    }
+
     public function register(Request $request): JsonResponse
     {
         $request->validate([
