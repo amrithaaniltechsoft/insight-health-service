@@ -82,6 +82,18 @@ class AppointmentController extends Controller
             return response()->json(['message' => 'Customer not found'], 404);
         }
 
+        if (!empty($validated['staff_id'])) {
+            $assignedStaff = Staff::where('id', $validated['staff_id'])->orWhere('staff_code', $validated['staff_id'])->first();
+            if ($assignedStaff) {
+                if ($assignedStaff->status === 'inactive' || $assignedStaff->status === 'revoked') {
+                    return response()->json(['message' => 'Cannot assign appointment: Staff account access is revoked.'], 422);
+                }
+                if ($assignedStaff->availability === 'unavailable') {
+                    return response()->json(['message' => 'Cannot assign appointment: Clinician is currently marked as Unavailable.'], 422);
+                }
+            }
+        }
+
         $code = 'APT-' . rand(1000, 9999);
 
         $appointment = Appointment::create([

@@ -52,6 +52,7 @@ Route::prefix('admin')->group(function () {
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/me', [AdminApi\AuthController::class, 'me']);
         Route::post('/logout', [AdminApi\AuthController::class, 'logout']);
+        Route::put('/change-password', [AdminApi\AuthController::class, 'changePassword']);
 
         Route::get('/overview/stats', [AdminApi\OverviewController::class, 'stats']);
         
@@ -84,6 +85,7 @@ Route::prefix('admin')->group(function () {
         Route::post('/payments', [AdminApi\PaymentController::class, 'store']);
 
         Route::get('/services', [AdminApi\ServiceController::class, 'index']);
+        Route::post('/services', [AdminApi\ServiceController::class, 'store']);
         Route::put('/services/{id}', [AdminApi\ServiceController::class, 'update']);
 
         Route::get('/schedules', [AdminApi\ScheduleController::class, 'index']);
