@@ -43,6 +43,7 @@ Route::post('/auth/check', [App\Http\Controllers\Api\AuthController::class, 'che
 Route::post('/auth/register', [App\Http\Controllers\Api\AuthController::class, 'register']);
 Route::put('/auth/profile', [App\Http\Controllers\Api\AuthController::class, 'updateProfile']);
 
+
 // Isolated Next.js Administration API Routes
 use App\Http\Controllers\AdminApi;
 
