@@ -25,18 +25,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/overview/stats', [AdminApi\OverviewController::class, 'stats']);
 
     // Appointments Management
+    Route::get('/appointments/booked-slots', [AdminApi\AppointmentController::class, 'bookedSlots']);
     Route::get('/appointments', [AdminApi\AppointmentController::class, 'index']);
     Route::post('/appointments', [AdminApi\AppointmentController::class, 'store']);
     Route::put('/appointments/{id}', [AdminApi\AppointmentController::class, 'update']);
     Route::get('/appointments/calendar', [AdminApi\AppointmentController::class, 'calendar']);
 
     // Patients & Customers Directory
-    Route::get('/patients', [AdminApi\PatientController::class, 'index']);
+    Route::get('/patients/check-email', [AdminApi\PatientController::class, 'checkEmail']);
+    Route::get('/patients/search', [AdminApi\PatientController::class, 'search']);
+    Route::post('/patients/create-under-customer', [AdminApi\PatientController::class, 'createUnderCustomer']);
+    Route::post('/patients/create-with-customer', [AdminApi\PatientController::class, 'createWithCustomer']);
+    Route::get('/patients', [AdminApi\PatientController::class, 'patientsIndex']);
     Route::post('/patients', [AdminApi\PatientController::class, 'store']);
     Route::get('/patients/{id}', [AdminApi\PatientController::class, 'show']);
     Route::put('/patients/{id}', [AdminApi\PatientController::class, 'update']);
 
-    Route::get('/customers', [AdminApi\PatientController::class, 'index']);
+    Route::get('/customers', [AdminApi\PatientController::class, 'customersIndex']);
     Route::post('/customers', [AdminApi\PatientController::class, 'store']);
     Route::get('/customers/{id}', [AdminApi\PatientController::class, 'show']);
     Route::put('/customers/{id}', [AdminApi\PatientController::class, 'update']);

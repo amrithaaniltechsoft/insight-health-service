@@ -10,11 +10,6 @@ class CategorySeeder extends Seeder
 {
     public function run(): void
     {
-        \DB::statement('SET FOREIGN_KEY_CHECKS=0');
-        SubCategory::truncate();
-        Category::truncate();
-        \DB::statement('SET FOREIGN_KEY_CHECKS=1');
-
         $categoriesData = [
             [
                 'name' => 'Pregnancy Ultrasound Scans',
@@ -109,14 +104,21 @@ class CategorySeeder extends Seeder
             $subcategories = $data['subcategories'];
             unset($data['subcategories']);
             
-            $category = Category::create($data);
+            $category = Category::updateOrCreate(
+                ['slug' => $data['slug']],
+                $data
+            );
             
             foreach ($subcategories as $index => $subName) {
-                SubCategory::create([
-                    'category_id' => $category->id,
-                    'name' => $subName,
-                    'order' => $index + 1
-                ]);
+                SubCategory::firstOrCreate(
+                    [
+                        'category_id' => $category->id,
+                        'name' => $subName,
+                    ],
+                    [
+                        'order' => $index + 1
+                    ]
+                );
             }
         }
     }

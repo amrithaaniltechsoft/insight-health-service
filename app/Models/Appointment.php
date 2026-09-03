@@ -14,6 +14,7 @@ class Appointment extends Model
         'patient_id',
         'clinic_id',
         'service_id',
+        'service_ids',
         'staff_id',
         'appointment_date',
         'start_time',
@@ -26,11 +27,12 @@ class Appointment extends Model
 
     protected $casts = [
         'appointment_date' => 'date',
+        'service_ids' => 'array',
     ];
 
     public function patient()
     {
-        return $this->belongsTo(Customer::class, 'patient_id');
+        return $this->belongsTo(Patient::class, 'patient_id');
     }
 
     public function customer()

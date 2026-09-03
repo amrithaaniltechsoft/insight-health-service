@@ -10,9 +10,15 @@ use Illuminate\Support\Facades\Hash;
 
 class StaffController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $staffList = Staff::with('clinic')->get()->map(function($s) {
+        $query = Staff::with('clinic');
+
+        if ($request->has('role') && !empty($request->role)) {
+            $query->where('role', $request->role);
+        }
+
+        $staffList = $query->get()->map(function($s) {
             return [
                 'id' => $s->staff_code ?: ('STF-' . str_pad($s->id, 4, '0', STR_PAD_LEFT)),
                 'rawId' => $s->id,
