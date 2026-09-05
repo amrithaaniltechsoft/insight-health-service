@@ -42,6 +42,39 @@ class Customer extends Authenticatable
         ];
     }
 
+    protected static function booted()
+    {
+        static::creating(function ($customer) {
+            if (empty($customer->customer_code)) {
+                $customer->customer_code = static::generateNextCustomerCode();
+            }
+        });
+    }
+
+    public static function generateNextCustomerCode(): string
+    {
+        $lastCustomer = static::orderBy('id', 'desc')->first();
+        $nextId = $lastCustomer ? ($lastCustomer->id + 1) : 1;
+
+        $maxCodeNum = static::where('customer_code', 'like', 'CUST-%')
+            ->get()
+            ->map(function ($c) {
+                return intval(preg_replace('/[^0-9]/', '', $c->customer_code));
+            })
+            ->max() ?? 0;
+
+        if ($maxCodeNum >= $nextId) {
+            $nextId = $maxCodeNum + 1;
+        }
+
+        return 'CUST-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+    }
+
+    public function patients()
+    {
+        return $this->hasMany(Patient::class, 'customer_id');
+    }
+
     public function appointments()
     {
         return $this->hasMany(Appointment::class, 'patient_id');

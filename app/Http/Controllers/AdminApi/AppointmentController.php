@@ -206,7 +206,7 @@ class AppointmentController extends Controller
                 $patient = Patient::firstOrCreate(
                     ['customer_id' => $customer->id, 'email' => $customer->email],
                     [
-                        'patient_code' => 'PAT-' . rand(1000, 9999),
+                        'patient_code' => Patient::generateNextPatientCode(),
                         'first_name' => $customer->first_name ?? 'Customer',
                         'last_name' => $customer->last_name ?? '',
                         'dob' => $customer->dob,

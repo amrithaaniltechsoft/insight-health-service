@@ -38,13 +38,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/patients/create-with-customer', [AdminApi\PatientController::class, 'createWithCustomer']);
     Route::get('/patients', [AdminApi\PatientController::class, 'patientsIndex']);
     Route::post('/patients', [AdminApi\PatientController::class, 'store']);
-    Route::get('/patients/{id}', [AdminApi\PatientController::class, 'show']);
-    Route::put('/patients/{id}', [AdminApi\PatientController::class, 'update']);
+    Route::get('/patients/{id}', [AdminApi\PatientController::class, 'showPatient']);
+    Route::put('/patients/{id}', [AdminApi\PatientController::class, 'updatePatient']);
+
+    // Patient Medical Files & Attachments
+    Route::get('/patients/{patientId}/medical-files', [AdminApi\PatientMedicalFileController::class, 'index']);
+    Route::post('/patients/{patientId}/medical-files', [AdminApi\PatientMedicalFileController::class, 'store']);
+    Route::delete('/patients/{patientId}/medical-files/{fileId}', [AdminApi\PatientMedicalFileController::class, 'destroy']);
+
+    // Patient Structured Clinical Reports
+    Route::get('/patients/{patientId}/clinical-reports', [AdminApi\PatientClinicalReportController::class, 'index']);
+    Route::post('/patients/{patientId}/clinical-reports', [AdminApi\PatientClinicalReportController::class, 'store']);
+    Route::get('/patients/{patientId}/clinical-reports/{reportId}', [AdminApi\PatientClinicalReportController::class, 'show']);
 
     Route::get('/customers', [AdminApi\PatientController::class, 'customersIndex']);
     Route::post('/customers', [AdminApi\PatientController::class, 'store']);
-    Route::get('/customers/{id}', [AdminApi\PatientController::class, 'show']);
-    Route::put('/customers/{id}', [AdminApi\PatientController::class, 'update']);
+    Route::get('/customers/{id}', [AdminApi\PatientController::class, 'showCustomer']);
+    Route::put('/customers/{id}', [AdminApi\PatientController::class, 'updateCustomer']);
 
     // Clinical Records & Notes
     Route::get('/clinical-notes/{appointmentId}', [AdminApi\ClinicalNoteController::class, 'showByAppointment']);

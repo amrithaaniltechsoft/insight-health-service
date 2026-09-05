@@ -33,7 +33,7 @@ class PatientController extends Controller
 
         // If customer exists but has no records in patients table yet, auto-create a primary Patient entry for them
         if ($patients->isEmpty()) {
-            $patientCode = 'PAT-' . rand(1000, 9999);
+            $patientCode = Patient::generateNextPatientCode();
             $primaryPatient = Patient::create([
                 'patient_code' => $patientCode,
                 'customer_id' => $customer->id,
@@ -105,7 +105,7 @@ class PatientController extends Controller
                 $pat = Patient::firstOrCreate(
                     ['customer_id' => $c->id, 'email' => $c->email],
                     [
-                        'patient_code' => 'PAT-' . rand(1000, 9999),
+                        'patient_code' => Patient::generateNextPatientCode(),
                         'first_name' => $c->first_name ?? 'Customer',
                         'last_name' => $c->last_name ?? '',
                         'dob' => $c->dob,
@@ -123,7 +123,7 @@ class PatientController extends Controller
             'data' => $patients->map(function($p) {
                 return [
                     'id' => $p->id,
-                    'patient_code' => $p->patient_code ?? ('PAT-' . $p->id),
+                    'patient_code' => $p->patient_code ?? ('PAT-' . str_pad($p->id, 4, '0', STR_PAD_LEFT)),
                     'name' => trim($p->first_name . ' ' . $p->last_name),
                     'firstName' => $p->first_name,
                     'lastName' => $p->last_name,
@@ -149,7 +149,7 @@ class PatientController extends Controller
             'relationship' => 'nullable|string',
         ]);
 
-        $code = 'PAT-' . rand(1000, 9999);
+        $code = Patient::generateNextPatientCode();
 
         $patient = Patient::create([
             'patient_code' => $code,
@@ -195,7 +195,7 @@ class PatientController extends Controller
             'zip_code' => 'nullable|string',
         ]);
 
-        $custCode = 'CUST-' . rand(1000, 9999);
+        $custCode = Customer::generateNextCustomerCode();
 
         $customer = Customer::create([
             'customer_code' => $custCode,
@@ -212,7 +212,7 @@ class PatientController extends Controller
             'status' => 'active',
         ]);
 
-        $patCode = 'PAT-' . rand(1000, 9999);
+        $patCode = Patient::generateNextPatientCode();
 
         $patient = Patient::create([
             'patient_code' => $patCode,
@@ -306,14 +306,13 @@ class PatientController extends Controller
 
     public function customersIndex(Request $request)
     {
-        $query = Customer::with(['patients', 'appointments.service']);
+        $query = Customer::with(['patients']);
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
                   ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('customer_code', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
@@ -323,7 +322,7 @@ class PatientController extends Controller
         $customers = $query->orderBy('created_at', 'desc')->get()->map(function($c) {
             $fullName = trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? ''));
             if (empty($fullName)) {
-                $fullName = $c->name ?? 'Customer';
+                $fullName = 'Customer #' . $c->id;
             }
 
             $code = $c->customer_code ?? ('CUST-' . str_pad($c->id, 4, '0', STR_PAD_LEFT));
@@ -336,12 +335,12 @@ class PatientController extends Controller
                 'lastName' => $c->last_name ?? '',
                 'dob' => $c->dob ? (is_string($c->dob) ? $c->dob : $c->dob->format('Y-m-d')) : '',
                 'gender' => $c->gender ?? 'Other',
-                'email' => $c->email,
+                'email' => $c->email ?? '',
                 'phone' => $c->phone ?? 'N/A',
                 'title' => $c->title ?? '',
                 'address' => trim(($c->address_line_1 ?? '') . ' ' . ($c->city ?? '')),
                 'patientsCount' => $c->patients ? $c->patients->count() : 0,
-                'patientsList' => ($c->patients ?? collect())->map(fn($p) => trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')))->toArray(),
+                'patientsList' => ($c->patients ?? collect())->map(fn($p) => trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? '')))->filter()->toArray(),
                 'status' => $c->status ?? 'active',
             ];
         });
@@ -377,7 +376,7 @@ class PatientController extends Controller
             'medical_history' => 'nullable|string',
         ]);
 
-        $code = 'CUST-' . rand(1000, 9999);
+        $code = Customer::generateNextCustomerCode();
 
         $customer = Customer::create([
             'customer_code' => $code,
@@ -406,11 +405,165 @@ class PatientController extends Controller
         ], 201);
     }
 
-    public function show($id)
+    public function showPatient($id)
     {
         $rawId = intval(preg_replace('/[^0-9]/', '', $id));
 
-        $customer = Customer::with(['appointments.service', 'clinicalNotes'])
+        $patient = Patient::with([
+            'customer',
+            'appointments.service',
+            'appointments.staff',
+            'clinicalNotes',
+            'medicalFiles.uploader'
+        ])
+        ->where('id', $id)
+        ->orWhere('id', $rawId)
+        ->orWhere('patient_code', $id)
+        ->firstOrFail();
+
+        $fullName = trim(($patient->first_name ?? '') . ' ' . ($patient->last_name ?? ''));
+        if (empty($fullName)) {
+            $fullName = 'Patient #' . $patient->id;
+        }
+
+        $code = $patient->patient_code ?? ('PAT-' . str_pad($patient->id, 4, '0', STR_PAD_LEFT));
+
+        $customerData = null;
+        if ($patient->customer) {
+            $c = $patient->customer;
+            $cName = trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? ''));
+            $customerData = [
+                'id' => $c->customer_code ?? ('CUST-' . str_pad($c->id, 4, '0', STR_PAD_LEFT)),
+                'rawId' => $c->id,
+                'name' => !empty($cName) ? $cName : 'Customer #' . $c->id,
+                'email' => $c->email,
+                'phone' => $c->phone ?? '',
+            ];
+        }
+
+        $appointments = ($patient->appointments ?? collect())->map(function($apt) {
+            $serviceTitles = [];
+            if (is_array($apt->service_ids) && count($apt->service_ids) > 0) {
+                $services = \App\Models\Service::whereIn('id', $apt->service_ids)->get();
+                $serviceTitles = $services->map(fn($s) => $s->title ?? $s->service_name)->filter()->toArray();
+            }
+            if (count($serviceTitles) === 0 && $apt->service) {
+                $serviceTitles[] = $apt->service->title ?? $apt->service->service_name;
+            }
+            $serviceDisplay = count($serviceTitles) > 0 ? implode(" + ", $serviceTitles) : 'Health Scan';
+
+            return [
+                'id' => $apt->appointment_code,
+                'rawId' => $apt->id,
+                'date' => $apt->appointment_date ? (is_string($apt->appointment_date) ? $apt->appointment_date : $apt->appointment_date->format('Y-m-d')) : '',
+                'time' => $apt->start_time ? date('g:i A', strtotime($apt->start_time)) : '',
+                'service' => $serviceDisplay,
+                'status' => $apt->status,
+                'paymentStatus' => $apt->payment_status,
+                'clinician' => $apt->staff ? trim($apt->staff->first_name . ' ' . $apt->staff->last_name) : 'Unassigned',
+                'notes' => $apt->notes,
+            ];
+        });
+
+        $clinicalNotes = ($patient->clinicalNotes ?? collect())->map(function($note) {
+            return [
+                'id' => $note->id,
+                'appointment_id' => $note->appointment_id,
+                'subjective' => $note->subjective,
+                'objective' => $note->objective,
+                'assessment' => $note->assessment,
+                'plan' => $note->plan,
+                'internal_notes' => $note->internal_notes,
+                'allergies' => $note->allergies ?? [],
+                'status' => $note->status,
+                'signed_at' => $note->signed_at ? (is_string($note->signed_at) ? $note->signed_at : $note->signed_at->format('Y-m-d H:i')) : '',
+            ];
+        });
+
+        $medicalFiles = ($patient->medicalFiles ?? collect())->map(function($f) {
+            return [
+                'id' => $f->id,
+                'title' => $f->title,
+                'file_name' => $f->file_name,
+                'file_type' => $f->file_type,
+                'mime_type' => $f->mime_type,
+                'file_size' => $f->file_size,
+                'notes' => $f->notes,
+                'url' => asset('storage/' . $f->file_path),
+                'uploaded_by' => $f->uploader ? trim($f->uploader->first_name . ' ' . $f->uploader->last_name) : 'Staff Member',
+                'created_at' => $f->created_at ? $f->created_at->format('Y-m-d H:i') : '',
+            ];
+        });
+
+        $formatted = [
+            'id' => $code,
+            'rawId' => $patient->id,
+            'patient_code' => $code,
+            'name' => $fullName,
+            'first_name' => $patient->first_name ?? '',
+            'last_name' => $patient->last_name ?? '',
+            'dob' => $patient->dob ? (is_string($patient->dob) ? $patient->dob : $patient->dob->format('Y-m-d')) : '',
+            'gender' => $patient->gender ?? 'Other',
+            'email' => $patient->email ?? ($patient->customer ? $patient->customer->email : ''),
+            'phone' => $patient->phone ?? ($patient->customer ? $patient->customer->phone : ''),
+            'address' => $patient->address ?? '',
+            'medical_history' => $patient->medical_history ?? '',
+            'allergies' => $patient->allergies ?? [],
+            'emergency_contact' => $patient->emergency_contact ?? null,
+            'status' => $patient->status ?? 'active',
+            'customer' => $customerData,
+            'appointments' => $appointments,
+            'clinicalNotes' => $clinicalNotes,
+            'medicalFiles' => $medicalFiles,
+        ];
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $formatted
+        ]);
+    }
+
+    public function updatePatient(Request $request, $id)
+    {
+        $rawId = intval(preg_replace('/[^0-9]/', '', $id));
+
+        $patient = Patient::where('id', $id)
+            ->orWhere('id', $rawId)
+            ->orWhere('patient_code', $id)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'first_name' => 'nullable|string',
+            'last_name' => 'nullable|string',
+            'email' => 'nullable|email',
+            'phone' => 'nullable|string',
+            'dob' => 'nullable|date',
+            'gender' => 'nullable|string',
+            'address' => 'nullable|string',
+            'medical_history' => 'nullable|string',
+            'status' => 'nullable|string',
+        ]);
+
+        $data = array_filter($validated, function($v) {
+            return !is_null($v);
+        });
+
+        if (!empty($data)) {
+            $patient->update($data);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Patient profile updated successfully',
+            'data' => $patient
+        ]);
+    }
+
+    public function showCustomer($id)
+    {
+        $rawId = intval(preg_replace('/[^0-9]/', '', $id));
+
+        $customer = Customer::with(['patients'])
             ->where('id', $id)
             ->orWhere('id', $rawId)
             ->orWhere('customer_code', $id)
@@ -418,10 +571,27 @@ class PatientController extends Controller
 
         $fullName = trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? ''));
         if (empty($fullName)) {
-            $fullName = $customer->name ?? 'Customer';
+            $fullName = 'Customer #' . $customer->id;
         }
 
         $code = $customer->customer_code ?? ('CUST-' . str_pad($customer->id, 4, '0', STR_PAD_LEFT));
+
+        $registeredPatients = ($customer->patients ?? collect())->map(function($p) {
+            $pName = trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? ''));
+            return [
+                'id' => $p->patient_code ?? ('PAT-' . str_pad($p->id, 4, '0', STR_PAD_LEFT)),
+                'rawId' => $p->id,
+                'patient_code' => $p->patient_code ?? ('PAT-' . str_pad($p->id, 4, '0', STR_PAD_LEFT)),
+                'name' => !empty($pName) ? $pName : 'Patient #' . $p->id,
+                'first_name' => $p->first_name,
+                'last_name' => $p->last_name,
+                'dob' => $p->dob ? (is_string($p->dob) ? $p->dob : $p->dob->format('Y-m-d')) : '',
+                'gender' => $p->gender ?? 'Other',
+                'email' => $p->email,
+                'phone' => $p->phone,
+                'status' => $p->status ?? 'active',
+            ];
+        });
 
         $formatted = [
             'id' => $code,
@@ -442,11 +612,8 @@ class PatientController extends Controller
             'state' => $customer->state ?? '',
             'zip_code' => $customer->zip_code ?? '',
             'country' => $customer->country ?? '',
-            'medical_history' => $customer->medical_history ?? '',
             'status' => $customer->status ?? 'active',
-            'medical_history' => $customer->medical_history ?? '',
-            'appointments' => $customer->appointments,
-            'clinicalNotes' => $customer->clinicalNotes,
+            'patients' => $registeredPatients,
         ];
 
         return response()->json([
@@ -455,7 +622,7 @@ class PatientController extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
+    public function updateCustomer(Request $request, $id)
     {
         $rawId = intval(preg_replace('/[^0-9]/', '', $id));
 
@@ -479,7 +646,6 @@ class PatientController extends Controller
             'state' => 'nullable|string',
             'zip_code' => 'nullable|string',
             'country' => 'nullable|string',
-            'medical_history' => 'nullable|string',
             'status' => 'nullable|string',
         ]);
 

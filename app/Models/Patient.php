@@ -32,6 +32,34 @@ class Patient extends Model
         'dob' => 'date',
     ];
 
+    protected static function booted()
+    {
+        static::creating(function ($patient) {
+            if (empty($patient->patient_code)) {
+                $patient->patient_code = static::generateNextPatientCode();
+            }
+        });
+    }
+
+    public static function generateNextPatientCode(): string
+    {
+        $lastPatient = static::orderBy('id', 'desc')->first();
+        $nextId = $lastPatient ? ($lastPatient->id + 1) : 1;
+
+        $maxCodeNum = static::where('patient_code', 'like', 'PAT-%')
+            ->get()
+            ->map(function ($p) {
+                return intval(preg_replace('/[^0-9]/', '', $p->patient_code));
+            })
+            ->max() ?? 0;
+
+        if ($maxCodeNum >= $nextId) {
+            $nextId = $maxCodeNum + 1;
+        }
+
+        return 'PAT-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);
@@ -50,5 +78,15 @@ class Patient extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function medicalFiles()
+    {
+        return $this->hasMany(PatientMedicalFile::class);
+    }
+
+    public function clinicalReports()
+    {
+        return $this->hasMany(PatientClinicalReport::class);
     }
 }
