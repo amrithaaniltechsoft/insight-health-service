@@ -16,6 +16,7 @@ class Customer extends Authenticatable
         'first_name',
         'last_name',
         'gender',
+        'blood_group',
         'title',
         'dob',
         'phone',

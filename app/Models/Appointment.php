@@ -30,6 +30,23 @@ class Appointment extends Model
         'service_ids' => 'array',
     ];
 
+    protected static function booted()
+    {
+        static::creating(function ($appointment) {
+            if (empty($appointment->appointment_code)) {
+                $appointment->appointment_code = static::generateNextAppointmentCode();
+            }
+        });
+    }
+
+    public static function generateNextAppointmentCode(): string
+    {
+        $lastAppointment = static::orderBy('id', 'desc')->first();
+        $nextId = $lastAppointment ? ($lastAppointment->id + 1) : 1;
+
+        return 'APT-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+    }
+
     public function patient()
     {
         return $this->belongsTo(Patient::class, 'patient_id');

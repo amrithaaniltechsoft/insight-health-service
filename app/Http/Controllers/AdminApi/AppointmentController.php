@@ -296,7 +296,7 @@ class AppointmentController extends Controller
         // Format start_time to HH:i:s for MySQL TIME column compatibility
         $startTimeFormatted = date('H:i:s', strtotime($validated['start_time']));
 
-        $code = 'APT-' . rand(1000, 9999);
+        $code = Appointment::generateNextAppointmentCode();
 
         $appointment = Appointment::create([
             'appointment_code' => $code,

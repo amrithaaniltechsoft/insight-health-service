@@ -59,6 +59,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Clinical Records & Notes
     Route::get('/clinical-notes/{appointmentId}', [AdminApi\ClinicalNoteController::class, 'showByAppointment']);
     Route::post('/clinical-notes/{appointmentId}', [AdminApi\ClinicalNoteController::class, 'storeOrUpdate']);
+    Route::get('/patients/{patientId}/clinical-notes', [AdminApi\ClinicalNoteController::class, 'indexByPatient']);
+    Route::post('/patients/{patientId}/clinical-notes', [AdminApi\ClinicalNoteController::class, 'storeForPatient']);
 
     // Staff Directory & Roster
     Route::get('/staff', [AdminApi\StaffController::class, 'index']);

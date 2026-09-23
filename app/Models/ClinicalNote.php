@@ -13,6 +13,7 @@ class ClinicalNote extends Model
         'appointment_id',
         'patient_id',
         'clinician_id',
+        'clinician_name',
         'subjective',
         'objective',
         'assessment',
