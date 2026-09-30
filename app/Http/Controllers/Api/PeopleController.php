@@ -62,7 +62,14 @@ class PeopleController extends Controller
         }
 
         $people = Patient::where('customer_id', $customer->id)
-            ->whereNotIn('email', array_filter([$customer->email]))
+            // `NOT IN` is not usable here: SQL treats a comparison against NULL as
+            // unknown rather than true, so every relative booked without an email
+            // of their own would drop out of the list. A relative usually has no
+            // email, so that is most of them.
+            ->where(function ($query) use ($customer) {
+                $query->whereNull('email')
+                    ->orWhere('email', '<>', $customer->email);
+            })
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->get()

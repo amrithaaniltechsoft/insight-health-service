@@ -43,6 +43,13 @@ Route::get('/people', [App\Http\Controllers\Api\PeopleController::class, 'index'
 Route::post('/people', [App\Http\Controllers\Api\PeopleController::class, 'store']);
 Route::delete('/people', [App\Http\Controllers\Api\PeopleController::class, 'destroy']);
 
+// The booking wizard's "Continue" step. Lives here for the same reason as
+// /people — the database is on this host and Vercel cannot reach it.
+Route::get('/assessment', [App\Http\Controllers\Api\AssessmentController::class, 'index']);
+
+Route::post('/bookings', [App\Http\Controllers\Api\BookingController::class, 'store']);
+Route::get('/bookings', [App\Http\Controllers\Api\BookingController::class, 'index']);
+
 // Auth API routes
 Route::post('/auth/send-otp', [App\Http\Controllers\Api\AuthController::class, 'sendOtp']);
 Route::post('/auth/verify-otp', [App\Http\Controllers\Api\AuthController::class, 'verifyOtp']);
