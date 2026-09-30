@@ -14,6 +14,7 @@ class Patient extends Model
         'customer_id',
         'first_name',
         'last_name',
+        'title',
         'dob',
         'gender',
         'blood_group',

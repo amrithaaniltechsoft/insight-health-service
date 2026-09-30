@@ -36,6 +36,13 @@ Route::get('/reviews', [App\Http\Controllers\ReviewApiController::class, 'index'
 Route::post('/enquiries', [App\Http\Controllers\EnquiryApiController::class, 'store']);
 Route::get('/seos/{page}', [App\Http\Controllers\Admin\SeoController::class, 'getPublicSeoByPage']);
 
+// "My People" — the family and friends a customer books for.
+// These live on this server because the deployed frontend cannot reach MySQL
+// directly; Laravel is on this machine and reaches it over localhost.
+Route::get('/people', [App\Http\Controllers\Api\PeopleController::class, 'index']);
+Route::post('/people', [App\Http\Controllers\Api\PeopleController::class, 'store']);
+Route::delete('/people', [App\Http\Controllers\Api\PeopleController::class, 'destroy']);
+
 // Auth API routes
 Route::post('/auth/send-otp', [App\Http\Controllers\Api\AuthController::class, 'sendOtp']);
 Route::post('/auth/verify-otp', [App\Http\Controllers\Api\AuthController::class, 'verifyOtp']);
