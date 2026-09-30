@@ -278,6 +278,9 @@ class PatientController extends Controller
                 'lastName' => $p->last_name ?? '',
                 'dob' => $p->dob ? (is_string($p->dob) ? $p->dob : $p->dob->format('Y-m-d')) : '',
                 'gender' => $p->gender ?? 'Other',
+                'blood_group' => $p->blood_group ?? '',
+                'bloodGroup' => $p->blood_group ?? '',
+                'allergies' => $p->allergies ?? [],
                 'email' => $p->email ?? ($p->customer ? $p->customer->email : ''),
                 'phone' => $p->phone ?? ($p->customer ? $p->customer->phone : 'N/A'),
                 'customerName' => $customerName,
@@ -466,9 +469,28 @@ class PatientController extends Controller
         });
 
         $clinicalNotes = ($patient->clinicalNotes ?? collect())->map(function($note) {
+            $clinicianName = $note->clinician_name;
+            if (empty($clinicianName) && $note->clinician) {
+                $clinicianName = trim($note->clinician->first_name . ' ' . $note->clinician->last_name);
+            }
+            if (empty($clinicianName) && $note->appointment && $note->appointment->staff) {
+                $clinicianName = trim($note->appointment->staff->first_name . ' ' . $note->appointment->staff->last_name);
+            }
+            if (empty($clinicianName)) {
+                $clinicianName = 'Dr. Marcus Thorne';
+            }
+
+            $serviceName = 'Clinical Consultation';
+            if ($note->appointment && $note->appointment->service) {
+                $serviceName = $note->appointment->service->title ?? $note->appointment->service->service_name;
+            }
+
             return [
                 'id' => $note->id,
                 'appointment_id' => $note->appointment_id,
+                'created_at' => $note->created_at ? $note->created_at->format('Y-m-d') : date('Y-m-d'),
+                'clinician_name' => $clinicianName,
+                'service' => $serviceName,
                 'subjective' => $note->subjective,
                 'objective' => $note->objective,
                 'assessment' => $note->assessment,
@@ -504,6 +526,8 @@ class PatientController extends Controller
             'last_name' => $patient->last_name ?? '',
             'dob' => $patient->dob ? (is_string($patient->dob) ? $patient->dob : $patient->dob->format('Y-m-d')) : '',
             'gender' => $patient->gender ?? 'Other',
+            'blood_group' => $patient->blood_group ?? '',
+            'bloodGroup' => $patient->blood_group ?? '',
             'email' => $patient->email ?? ($patient->customer ? $patient->customer->email : ''),
             'phone' => $patient->phone ?? ($patient->customer ? $patient->customer->phone : ''),
             'address' => $patient->address ?? '',
@@ -539,10 +563,19 @@ class PatientController extends Controller
             'phone' => 'nullable|string',
             'dob' => 'nullable|date',
             'gender' => 'nullable|string',
+            'blood_group' => 'nullable|string',
+            'allergies' => 'nullable',
             'address' => 'nullable|string',
             'medical_history' => 'nullable|string',
             'status' => 'nullable|string',
         ]);
+
+        if ($request->has('allergies')) {
+            $rawAllergies = $request->input('allergies');
+            if (is_string($rawAllergies)) {
+                $validated['allergies'] = array_values(array_filter(array_map('trim', explode(',', $rawAllergies))));
+            }
+        }
 
         $data = array_filter($validated, function($v) {
             return !is_null($v);

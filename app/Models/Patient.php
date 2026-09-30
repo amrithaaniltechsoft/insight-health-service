@@ -16,6 +16,7 @@ class Patient extends Model
         'last_name',
         'dob',
         'gender',
+        'blood_group',
         'email',
         'phone',
         'address',
