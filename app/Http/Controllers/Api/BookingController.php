@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\Customer;
 use App\Models\Patient;
+use App\Models\Payment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +37,7 @@ class BookingController extends Controller
         'country',
     ];
 
-    private const GENDERS = ['Male', 'Female', 'Other'];
+    private const GENDERS = ['Male', 'Female', 'Non-binary', 'Other', 'Prefer not to say'];
 
     public function store(Request $request): JsonResponse
     {
@@ -86,10 +87,15 @@ class BookingController extends Controller
 
         $serviceName = trim((string) $request->input('service_name'));
 
+        // The wizard saves the person at step 2 but only books the slot once the
+        // customer has actually paid, so this flag holds the appointment back
+        // until /bookings/confirm is called from the payment step.
+        $deferAppointment = $request->boolean('defer_appointment');
+
         try {
             return DB::transaction(function () use (
                 $request, $bookingFor, $firstName, $lastName, $gender, $dob,
-                $appointmentDate, $startTime, $email, $serviceName
+                $appointmentDate, $startTime, $email, $serviceName, $deferAppointment
             ) {
                 $serviceId = $this->resolveServiceId($serviceName);
 
@@ -110,10 +116,10 @@ class BookingController extends Controller
                 }
 
                 if ($bookingFor === 'other') {
-                    return $this->bookForOther($request, $attributes, $serviceId, $appointmentDate, $startTime);
+                    return $this->bookForOther($request, $attributes, $serviceId, $appointmentDate, $startTime, $deferAppointment);
                 }
 
-                return $this->bookForSelf($request, $attributes, $email, $serviceId, $appointmentDate, $startTime);
+                return $this->bookForSelf($request, $attributes, $email, $serviceId, $appointmentDate, $startTime, $deferAppointment);
             });
         } catch (\Throwable $e) {
             report($e);
@@ -137,7 +143,8 @@ class BookingController extends Controller
         array $patientAttributes,
         ?int $serviceId,
         string $appointmentDate,
-        string $startTime
+        string $startTime,
+        bool $deferAppointment = false
     ): JsonResponse {
         $bookedByEmail = strtolower(trim((string) $request->input('booked_by_email')));
         $bookerCustomerId = null;
@@ -161,9 +168,11 @@ class BookingController extends Controller
             $patientId = $patient->id;
         }
 
-        [$appointment, $appointmentExisted] = $this->recordAppointment(
-            $patientId, $serviceId, $appointmentDate, $startTime, $request->input('notes')
-        );
+        [$appointment, $appointmentExisted] = $deferAppointment
+            ? [null, false]
+            : $this->recordAppointment(
+                $patientId, $serviceId, $appointmentDate, $startTime, $request->input('notes')
+            );
 
         $patient = Patient::find($patientId);
 
@@ -175,7 +184,8 @@ class BookingController extends Controller
             'customer_touched' => false,
             'patient_created' => !$patientExisted,
             'patient' => $this->presentPatient($patient),
-            'appointment_created' => !$appointmentExisted,
+            'appointment_deferred' => $deferAppointment,
+            'appointment_created' => !$deferAppointment && !$appointmentExisted,
             'appointment' => $appointment,
         ]);
     }
@@ -187,7 +197,8 @@ class BookingController extends Controller
         string $email,
         ?int $serviceId,
         string $appointmentDate,
-        string $startTime
+        string $startTime,
+        bool $deferAppointment = false
     ): JsonResponse {
         $customer = Customer::where('email', $email)->first();
         $customerAlreadyExisted = $customer !== null;
@@ -232,9 +243,11 @@ class BookingController extends Controller
             $patientId = $patient->id;
         }
 
-        [$appointment, $appointmentExisted] = $this->recordAppointment(
-            $patientId, $serviceId, $appointmentDate, $startTime, $request->input('notes')
-        );
+        [$appointment, $appointmentExisted] = $deferAppointment
+            ? [null, false]
+            : $this->recordAppointment(
+                $patientId, $serviceId, $appointmentDate, $startTime, $request->input('notes')
+            );
 
         return response()->json([
             'message' => $patientExisted
@@ -244,7 +257,8 @@ class BookingController extends Controller
             'created' => !$customerAlreadyExisted,
             'customer_touched' => true,
             'patient_created' => !$patientExisted,
-            'appointment_created' => !$appointmentExisted,
+            'appointment_deferred' => $deferAppointment,
+            'appointment_created' => !$deferAppointment && !$appointmentExisted,
             'customer' => $this->presentCustomer($customer),
             'patient' => $this->presentPatient(Patient::find($patientId)),
             'appointment' => $appointment,
@@ -365,10 +379,17 @@ class BookingController extends Controller
     /**
      * Resolves the service so the appointment points at the right row.
      *
-     * The frontend names a scan by its title, which lands in either service_name
-     * or title depending on the category. If that is ambiguous, service_id is left
-     * null rather than guessed — the column is nullable, and clinic_id and
-     * staff_id are assigned by staff later.
+     * `title` is the specific test or scan and `service_name` the group it sits
+     * under, so the title is tried first and on its own. They cannot be matched
+     * together: a group name is shared by every test inside it, so
+     * "Occupational Health Screening" is the service_name of three rows, and
+     * matching both columns at once made that name permanently ambiguous and
+     * left service_id null. MySQL also compares case-insensitively, so a title
+     * that happens to equal its own group name still resolves to the single
+     * row where both agree.
+     *
+     * Anything still ambiguous is left null rather than guessed — the column is
+     * nullable, and clinic_id and staff_id are assigned by staff later.
      */
     private function resolveServiceId(string $serviceName): ?int
     {
@@ -376,13 +397,21 @@ class BookingController extends Controller
             return null;
         }
 
-        $rows = DB::table('services')
-            ->where('service_name', $serviceName)
-            ->orWhere('title', $serviceName)
+        $byTitle = DB::table('services')
+            ->where('title', $serviceName)
             ->limit(2)
             ->get();
 
-        return $rows->count() === 1 ? (int) $rows->first()->id : null;
+        if ($byTitle->count() === 1) {
+            return (int) $byTitle->first()->id;
+        }
+
+        $byGroup = DB::table('services')
+            ->where('service_name', $serviceName)
+            ->limit(2)
+            ->get();
+
+        return $byGroup->count() === 1 ? (int) $byGroup->first()->id : null;
     }
 
     private function presentCustomer(Customer $customer): array
@@ -638,5 +667,218 @@ class BookingController extends Controller
         }
 
         return $maxLength === null ? $value : mb_substr($value, 0, $maxLength);
+    }
+
+    /**
+     * Confirms a deferred booking once the user commits on step 4.
+     *
+     * The person the appointment is for was already written as a `patients` row
+     * by store(), so this only adds the appointment and the payment. The patient
+     * is identified by the `patient_id` store() handed back, falling back to a
+     * name match for older callers.
+     *
+     * The account that owns that patient is `booked_by_email` — the person
+     * paying. It is not the patient's own email: a relative or friend is only a
+     * patient and usually has no customer account at all, so looking the
+     * customer up on the patient's email is what made booking for someone else
+     * fail here.
+     */
+    public function confirm(Request $request): JsonResponse
+    {
+        $patientEmail = strtolower(trim((string) $request->input('email')));
+        $bookedByEmail = strtolower(trim((string) $request->input('booked_by_email')));
+
+        // The payer owns the booking. Fall back to the patient's own email for a
+        // self-booking made without an account.
+        $ownerEmail = $bookedByEmail !== '' && filter_var($bookedByEmail, FILTER_VALIDATE_EMAIL)
+            ? $bookedByEmail
+            : $patientEmail;
+
+        $appointmentDate = $this->normaliseDate($request->input('appointment_date'));
+        if ($appointmentDate === null) {
+            return response()->json(['message' => 'A valid appointment date is required.'], 422);
+        }
+
+        $startTime = $this->normaliseTime($request->input('start_time'));
+        if ($startTime === null) {
+            return response()->json(['message' => 'A valid appointment time is required.'], 422);
+        }
+
+        $notes = $this->nullableString($request->input('notes'), 2000);
+        $serviceName = trim((string) $request->input('service_name'));
+        $paymentMethod = $this->nullableString($request->input('payment_method'), 255) ?: 'Card';
+
+        // "Continue to Payment" only holds the slot, so it inserts the
+        // appointment and leaves the payment to the "Pay" step. The payment row
+        // is not written until that button is pressed.
+        $recordPayment = $request->boolean('record_payment', true);
+
+        return DB::transaction(function () use (
+            $request,
+            $ownerEmail,
+            $appointmentDate,
+            $startTime,
+            $notes,
+            $serviceName,
+            $paymentMethod,
+            $recordPayment
+        ) {
+            $customer = $ownerEmail !== '' ? Customer::where('email', $ownerEmail)->first() : null;
+
+            // store() hands back the patient it wrote. Using it directly is
+            // reliable: a relative's name is not unique, and a guest booking for
+            // someone else has no customer account to look them up through.
+            $patient = null;
+            $patientId = $request->input('patient_id');
+
+            if (is_numeric($patientId)) {
+                $patient = Patient::find((int) $patientId);
+
+                // Scoped to the payer so one account can never confirm a booking
+                // against another account's person.
+                if ($patient && $customer && $patient->customer_id !== $customer->id) {
+                    $patient = null;
+                }
+            }
+
+            if (!$patient && $customer) {
+                $patient = Patient::where('customer_id', $customer->id)
+                    ->where('first_name', trim((string) $request->input('first_name')))
+                    ->where('last_name', trim((string) $request->input('last_name')))
+                    ->orderBy('id')
+                    ->first();
+            }
+
+            if (!$patient) {
+                return response()->json([
+                    'message' => 'We could not find the patient for this booking. Please go back and enter your details again.',
+                ], 422);
+            }
+
+            $serviceId = $this->resolveServiceId($serviceName);
+
+            // Taking the payment for a slot that "Continue to Payment" already
+            // inserted: that row is settled rather than duplicated, so the
+            // patient does not end up with two appointments for one booking.
+            $heldAppointment = null;
+            $heldId = $request->input('appointment_id');
+            if ($recordPayment && is_numeric($heldId)) {
+                $heldAppointment = Appointment::where('id', (int) $heldId)
+                    ->where('patient_id', $patient->id)
+                    ->first();
+            }
+
+            if ($heldAppointment) {
+                $payment = $this->recordPayment(
+                    $heldAppointment,
+                    $patient,
+                    $request->input('amount'),
+                    $paymentMethod,
+                    $request->input('transaction_ref')
+                );
+
+                return response()->json([
+                    'message' => 'Booking confirmed successfully.',
+                    'appointment' => $this->presentAppointment($heldAppointment->fresh()),
+                    'appointment_created' => false,
+                    'payment_recorded' => true,
+                    'payment' => $payment,
+                ]);
+            }
+
+            // Always insert a new appointment record as requested - do not update existing rows.
+            // It starts as Pending; the Pay step is what marks it Paid.
+            $appointment = new Appointment([
+                'patient_id'       => $patient->id,
+                'service_id'       => $serviceId,
+                'appointment_date' => $appointmentDate,
+                'start_time'       => $startTime,
+                'notes'            => $notes,
+                'status'           => 'Scheduled',
+                'payment_status'   => $recordPayment ? 'Paid' : 'Pending',
+                'source'           => 'web_frontend',
+            ]);
+            $appointment->save();
+
+            // Holding the slot does not take a payment, so there is nothing to
+            // write to `payments` yet.
+            if (!$recordPayment) {
+                return response()->json([
+                    'message' => 'Appointment held successfully.',
+                    'appointment' => $this->presentAppointment($appointment),
+                    'appointment_created' => true,
+                    'payment_recorded' => false,
+                    'payment' => null,
+                ]);
+            }
+
+            $payment = $this->recordPayment($appointment, $patient, $request->input('amount'), $paymentMethod, $request->input('transaction_ref'));
+
+            return response()->json([
+                'message' => 'Booking confirmed successfully.',
+                'appointment' => $this->presentAppointment($appointment),
+                'appointment_created' => true,
+                'payment_recorded' => true,
+                'payment' => $payment,
+            ]);
+        });
+    }
+
+    /**
+     * Writes the payment row for a confirmed appointment and marks that
+     * appointment paid.
+     *
+     * Split out of confirm() so the wizard can hold the slot first and take the
+     * payment on the following step. The invoice number is only unique by
+     * convention here, so it is checked against existing rows rather than
+     * trusted, and falls back to a time-based value if a collision somehow
+     * survives the retries.
+     */
+    private function recordPayment(
+        Appointment $appointment,
+        Patient $patient,
+        $amount,
+        string $paymentMethod,
+        $transactionRef
+    ): Payment {
+        $invoiceNumber = null;
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $candidate = 'INV-' . strtoupper(bin2hex(random_bytes(4)));
+            if (!Payment::where('invoice_number', $candidate)->exists()) {
+                $invoiceNumber = $candidate;
+                break;
+            }
+        }
+        if ($invoiceNumber === null) {
+            $invoiceNumber = 'INV-' . strtoupper(uniqid('', true));
+        }
+
+        $amount = $this->nullableString($amount, 255);
+        $numericAmount = $amount !== null && is_numeric(str_replace([',', '£', '$'], '', $amount))
+            ? (float) preg_replace('/[^0-9.]/', '', $amount)
+            : 0.00;
+
+        $payment = new Payment([
+            'invoice_number' => $invoiceNumber,
+            'appointment_id' => $appointment->id,
+            'patient_id'     => $patient->id,
+            'subtotal'       => $numericAmount,
+            'tax'            => 0.00,
+            'discount'       => 0.00,
+            'total_amount'   => $numericAmount,
+            'amount_paid'    => $numericAmount,
+            'payment_method' => $paymentMethod,
+            'status'         => 'Paid',
+            'transaction_ref'=> $this->nullableString($transactionRef, 255),
+        ]);
+        $payment->save();
+
+        // A payment row exists, so the appointment is no longer outstanding.
+        // Skipped when the appointment was already inserted as Paid.
+        if ($appointment->payment_status !== 'Paid') {
+            $appointment->update(['payment_status' => 'Paid']);
+        }
+
+        return $payment;
     }
 }

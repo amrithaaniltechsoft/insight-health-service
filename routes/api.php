@@ -48,6 +48,7 @@ Route::delete('/people', [App\Http\Controllers\Api\PeopleController::class, 'des
 Route::get('/assessment', [App\Http\Controllers\Api\AssessmentController::class, 'index']);
 
 Route::post('/bookings', [App\Http\Controllers\Api\BookingController::class, 'store']);
+Route::post('/bookings/confirm', [App\Http\Controllers\Api\BookingController::class, 'confirm']);
 Route::get('/bookings', [App\Http\Controllers\Api\BookingController::class, 'index']);
 
 // Auth API routes

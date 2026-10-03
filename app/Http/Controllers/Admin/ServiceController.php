@@ -107,6 +107,58 @@ class ServiceController extends Controller
     }
 
     /**
+     * Finds the one service a slug refers to.
+     *
+     * Exact matches are tried first, in priority order: the stored `slug` column,
+     * then the slugified title, then the slugified sub-category name. Only when
+     * none of those match does it fall back to a substring match.
+     *
+     * The substring fallback has to come last, because a sub-category name is
+     * very often a prefix of a test name inside it. Matching loosely first meant
+     * "occupational-health-screening" resolved to the unrelated "hepatitis-b-
+     * profile", because "occupational-health" is a prefix of it and came first.
+     * Five of the 120 blood tests resolved to the wrong service that way.
+     */
+    private function matchServiceBySlug($services, string $normalizedSlug)
+    {
+        // Titles and sub-category names are compared in separate passes over the
+        // whole set, not one pass testing both. Some names exist as a title of
+        // one test and as the sub-category of another — "Occupational Health
+        // Screening" is both — and a single pass returns whichever row the
+        // database happens to list first, which is the wrong one.
+        $service = $services->first(
+            fn ($s) => \Illuminate\Support\Str::slug($s->title ?? '') === $normalizedSlug
+        );
+
+        if (!$service) {
+            $service = $services->first(
+                fn ($s) => \Illuminate\Support\Str::slug($s->service_name ?? '') === $normalizedSlug
+            );
+        }
+
+        // Last resort, for slugs generated somewhere else. Substring matching is
+        // only safe once every exact candidate has been ruled out, because a
+        // sub-category name is often a prefix of a test name inside it.
+        if (!$service) {
+            $service = $services->first(function ($s) use ($normalizedSlug) {
+                $fromTitle = \Illuminate\Support\Str::slug($s->title ?? '');
+                $fromName  = \Illuminate\Support\Str::slug($s->service_name ?? '');
+
+                if ($fromTitle === '' || $fromName === '') {
+                    return false;
+                }
+
+                return str_contains($fromTitle, $normalizedSlug)
+                    || str_contains($normalizedSlug, $fromTitle)
+                    || str_contains($fromName, $normalizedSlug)
+                    || str_contains($normalizedSlug, $fromName);
+            });
+        }
+
+        return $service;
+    }
+
+    /**
      * Public API: get a single service by category slug + service slug.
      */
     public function getPublicServiceBySlug(string $categorySlug, string $serviceSlug)
@@ -125,30 +177,11 @@ class ServiceController extends Controller
         // Normalize: collapse multiple dashes like Str::slug does
         $normalizedSlug = preg_replace('/-+/', '-', $serviceSlug);
 
-        // Match by slugified service_name, title, or slug
         $services = Service::where('category_id', $category->id)->get();
         if ($normalizedSlug === 'cervical-screening' && in_array($categorySlug, ['servical-screening', 'cervical-screening'], true)) {
             $service = $services->first();
         } else {
-        $service = $services->first(function ($s) use ($normalizedSlug) {
-            $slugSource1 = \Illuminate\Support\Str::slug($s->title ?? '');
-            $slugSource2 = \Illuminate\Support\Str::slug($s->service_name ?? '');
-
-            // Exact match first (highest priority)
-            if ($slugSource1 === $normalizedSlug || $slugSource2 === $normalizedSlug) {
-                return true;
-            }
-
-            // Fuzzy match — only if slugs are non-empty
-            if ($slugSource1 !== '' && $slugSource2 !== '') {
-                return str_contains($slugSource1, $normalizedSlug) 
-                    || str_contains($normalizedSlug, $slugSource1)
-                    || str_contains($slugSource2, $normalizedSlug)
-                    || str_contains($normalizedSlug, $slugSource2);
-            }
-
-            return false;
-        });
+            $service = $this->matchServiceBySlug($services, $normalizedSlug);
         }
 
         if (!$service) {

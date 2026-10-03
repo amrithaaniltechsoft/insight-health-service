@@ -120,7 +120,7 @@ class AuthController extends Controller
             'email'      => 'required|email|max:255|unique:customers,email',
             'first_name' => 'required|string|max:255',
             'last_name'  => 'required|string|max:255',
-            'gender'     => 'required|string|in:Male,Female,Other',
+            'gender'     => 'required|string|in:Male,Female,Non-binary,Other,Prefer not to say',
             'dob'        => 'required|date',
         ]);
 
@@ -151,7 +151,7 @@ class AuthController extends Controller
             'email'        => 'required|email|max:255',
             'first_name'   => 'required|string|max:255',
             'last_name'    => 'required|string|max:255',
-            'gender'       => 'required|string|in:Male,Female,Other',
+            'gender'       => 'required|string|in:Male,Female,Non-binary,Other,Prefer not to say',
             'dob'          => 'required|date',
             'title'        => 'nullable|string|max:20',
             'phone'        => 'nullable|string|max:50',
