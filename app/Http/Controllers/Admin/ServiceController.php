@@ -159,6 +159,40 @@ class ServiceController extends Controller
     }
 
     /**
+     * Public API: get a single service from its slug alone.
+     *
+     * The booking wizard is often opened as /book-appointment?service=... with
+     * no category in the URL, so the category-scoped endpoint cannot be used to
+     * look the service up. Resolving it here is what lets the wizard hand a
+     * real `services.id` to the booking API instead of a name that may not
+     * match any row.
+     */
+    public function getPublicServiceBySlugOnly(string $slug)
+    {
+        $normalizedSlug = preg_replace('/-+/', '-', $slug);
+        $service = $this->matchServiceBySlug(Service::all(), $normalizedSlug);
+
+        if (!$service) {
+            return response()->json(['error' => 'Service not found'], 404);
+        }
+
+        $category = $service->category;
+
+        return response()->json([
+            'service' => [
+                'id'           => $service->id,
+                'slug'         => \Illuminate\Support\Str::slug($service->title ?? $service->service_name),
+                'title'        => $service->title ?? $service->service_name,
+                'service_name' => $service->service_name,
+                'price'        => $service->price ? '£' . number_format($service->price, 0) : null,
+                'duration'     => $service->appointment ?: '30 Min',
+                'category_slug' => $category?->slug,
+                'category_name' => $category?->name,
+            ],
+        ]);
+    }
+
+    /**
      * Public API: get a single service by category slug + service slug.
      */
     public function getPublicServiceBySlug(string $categorySlug, string $serviceSlug)

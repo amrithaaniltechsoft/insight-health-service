@@ -22,6 +22,8 @@ class Staff extends Model
         'clinic_id',
         'specialization',
         'status',
+        'availability',
+        'max_slots_per_day',
         'working_days',
     ];
 

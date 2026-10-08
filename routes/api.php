@@ -29,6 +29,9 @@ Route::get('/categories', [App\Http\Controllers\Admin\CategoryController::class,
 Route::get('/categories/{id}/subcategories', [App\Http\Controllers\Admin\CategoryController::class, 'getSubCategories']);
 Route::get('/categories/slug/{slug}/subcategories', [App\Http\Controllers\Admin\CategoryController::class, 'getSubCategoriesBySlug']);
 Route::get('/services/category/{slug}', [App\Http\Controllers\Admin\ServiceController::class, 'getPublicServicesBySlug']);
+// Must stay above /services/{categorySlug}/{serviceSlug}: both are three
+// segments, so a later registration would swallow "slug" as a category slug.
+Route::get('/services/slug/{slug}', [App\Http\Controllers\Admin\ServiceController::class, 'getPublicServiceBySlugOnly']);
 Route::get('/services/{categorySlug}/{serviceSlug}', [App\Http\Controllers\Admin\ServiceController::class, 'getPublicServiceBySlug']);
 Route::get('/cms/page/{page}', [App\Http\Controllers\Admin\CmsController::class, 'getPublicCmsByPage']);
 Route::get('/cms/{id}', [App\Http\Controllers\Admin\CmsController::class, 'getPublicCmsById']);

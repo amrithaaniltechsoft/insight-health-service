@@ -97,7 +97,7 @@ class BookingController extends Controller
                 $request, $bookingFor, $firstName, $lastName, $gender, $dob,
                 $appointmentDate, $startTime, $email, $serviceName, $deferAppointment
             ) {
-                $serviceId = $this->resolveServiceId($serviceName);
+                $serviceId = $this->resolveRequestedServiceId($request, $serviceName);
 
                 $attributes = [
                     'first_name' => $firstName,
@@ -329,6 +329,7 @@ class BookingController extends Controller
 
         $attributes = [
             'service_id'       => $serviceId,
+            'service_ids'      => $serviceId !== null ? [$serviceId] : null,
             'appointment_date' => $appointmentDate,
             'start_time'       => $startTime,
             'notes'            => $this->nullableString($notes, 2000),
@@ -412,6 +413,27 @@ class BookingController extends Controller
             ->get();
 
         return $byGroup->count() === 1 ? (int) $byGroup->first()->id : null;
+    }
+
+    /**
+     * The service the wizard picked, preferring the id it looked up over the
+     * name it displays.
+     *
+     * Matching on a name alone is best-effort: titles repeat, many rows only
+     * carry `service_name`, and the wizard's placeholder ("General
+     * Consultation") matches nothing at all — which is how an appointment ends
+     * up with no service and nothing ticked in the admin drawer. An explicit id
+     * removes the guessing; the name lookup stays for older callers.
+     */
+    private function resolveRequestedServiceId(Request $request, string $serviceName): ?int
+    {
+        $requested = $request->input('service_id');
+
+        if (is_numeric($requested) && DB::table('services')->where('id', (int) $requested)->exists()) {
+            return (int) $requested;
+        }
+
+        return $this->resolveServiceId($serviceName);
     }
 
     private function presentCustomer(Customer $customer): array
@@ -755,7 +777,7 @@ class BookingController extends Controller
                 ], 422);
             }
 
-            $serviceId = $this->resolveServiceId($serviceName);
+            $serviceId = $this->resolveRequestedServiceId($request, $serviceName);
 
             // Taking the payment for a slot that "Continue to Payment" already
             // inserted: that row is settled rather than duplicated, so the
@@ -769,6 +791,16 @@ class BookingController extends Controller
             }
 
             if ($heldAppointment) {
+                // A booking held before the service could be resolved never got
+                // one; record it now rather than leaving the admin drawer with
+                // nothing ticked forever.
+                if (!$heldAppointment->service_id && $serviceId !== null) {
+                    $heldAppointment->update([
+                        'service_id'  => $serviceId,
+                        'service_ids' => [$serviceId],
+                    ]);
+                }
+
                 $payment = $this->recordPayment(
                     $heldAppointment,
                     $patient,
@@ -791,6 +823,7 @@ class BookingController extends Controller
             $appointment = new Appointment([
                 'patient_id'       => $patient->id,
                 'service_id'       => $serviceId,
+                'service_ids'      => $serviceId !== null ? [$serviceId] : null,
                 'appointment_date' => $appointmentDate,
                 'start_time'       => $startTime,
                 'notes'            => $notes,

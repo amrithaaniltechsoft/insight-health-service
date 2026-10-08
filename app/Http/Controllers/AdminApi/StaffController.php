@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\AdminApi;
 
 use App\Http\Controllers\Controller;
+use App\Models\Clinic;
 use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class StaffController extends Controller
@@ -33,6 +35,7 @@ class StaffController extends Controller
                 'specialization' => $s->specialization ?? 'Healthcare Specialist',
                 'status' => $s->status ?? 'active',
                 'availability' => $s->availability ?? 'available',
+                'max_slots_per_day' => $s->max_slots_per_day ?? 10,
             ];
         });
 
@@ -50,37 +53,47 @@ class StaffController extends Controller
             'email' => 'required|email|unique:staff,email',
             'role' => 'required|in:super_admin,administrator,reception,clinician',
             'phone' => 'nullable|string',
-            'clinic_id' => 'nullable',
+            'clinic_id' => 'nullable|integer|exists:clinics,id',
             'specialization' => 'nullable|string',
             'password' => 'nullable|string|min:6',
             'availability' => 'nullable|in:available,unavailable',
+            'max_slots_per_day' => 'nullable|integer|min:1|max:500',
         ]);
 
-        // Find existing user or create new User record
-        $user = User::where('email', $validated['email'])->first();
-        if (!$user) {
-            $user = User::create([
-                'name' => trim($validated['first_name'] . ' ' . $validated['last_name']),
+        // Create the user + staff row atomically so a failed staff insert
+        // (bad FK, duplicate staff_code, ...) never leaves an orphaned user.
+        $staff = DB::transaction(function () use ($validated) {
+            $user = User::where('email', $validated['email'])->first();
+            if (!$user) {
+                $user = User::create([
+                    'name' => trim($validated['first_name'] . ' ' . $validated['last_name']),
+                    'email' => $validated['email'],
+                    'password' => Hash::make($validated['password'] ?? 'Password123!'),
+                ]);
+            }
+
+            do {
+                $staffCode = 'STF-' . random_int(1000, 9999);
+            } while (Staff::where('staff_code', $staffCode)->exists());
+
+            // clinic_id must reference an existing clinic (FK). Fall back to the
+            // first clinic in the system, or NULL when no clinic exists yet —
+            // hardcoding 1 breaks whenever that row is missing.
+            return Staff::create([
+                'user_id' => $user->id,
+                'staff_code' => $staffCode,
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password'] ?? 'Password123!'),
+                'phone' => $validated['phone'] ?? null,
+                'role' => $validated['role'],
+                'clinic_id' => $validated['clinic_id'] ?? Clinic::query()->value('id'),
+                'specialization' => $validated['specialization'] ?? 'Healthcare Specialist',
+                'status' => 'active',
+                'availability' => $validated['availability'] ?? 'available',
+                'max_slots_per_day' => $validated['max_slots_per_day'] ?? 10,
             ]);
-        }
-
-        $staffCode = 'STF-' . rand(1000, 9999);
-
-        $staff = Staff::create([
-            'user_id' => $user->id,
-            'staff_code' => $staffCode,
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'] ?? null,
-            'role' => $validated['role'],
-            'clinic_id' => $validated['clinic_id'] ?? 1,
-            'specialization' => $validated['specialization'] ?? 'Healthcare Specialist',
-            'status' => 'active',
-            'availability' => $validated['availability'] ?? 'available',
-        ]);
+        });
 
         return response()->json([
             'status' => 'success',
@@ -97,6 +110,7 @@ class StaffController extends Controller
                 'specialization' => $staff->specialization,
                 'status' => $staff->status,
                 'availability' => $staff->availability,
+                'max_slots_per_day' => $staff->max_slots_per_day,
             ]
         ], 201);
     }
@@ -116,15 +130,21 @@ class StaffController extends Controller
             'email' => 'nullable|email',
             'role' => 'nullable|in:super_admin,administrator,reception,clinician',
             'phone' => 'nullable|string',
-            'clinic_id' => 'nullable',
+            'clinic_id' => 'nullable|integer|exists:clinics,id',
             'specialization' => 'nullable|string',
             'status' => 'nullable|string',
             'availability' => 'nullable|in:available,unavailable',
+            'max_slots_per_day' => 'nullable|integer|min:1|max:500',
         ]);
 
         $data = array_filter($validated, function($v) {
             return !is_null($v);
         });
+
+        // The daily cap is required (no "unlimited"); default to 10 when absent.
+        if ($request->has('max_slots_per_day')) {
+            $data['max_slots_per_day'] = $validated['max_slots_per_day'] ?? 10;
+        }
 
         if (!empty($data)) {
             $staff->update($data);
