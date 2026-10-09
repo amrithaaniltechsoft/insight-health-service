@@ -179,4 +179,46 @@ class StaffController extends Controller
             'data' => $staff
         ]);
     }
+    public function resetPassword(Request $request, $id)
+    {
+        $authUser = $request->user();
+        $authStaff = Staff::where('user_id', $authUser->id)->first();
+
+        if (!$authStaff || $authStaff->role !== 'super_admin') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized. Only super admins can reset passwords.'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'password' => 'required|string|min:6',
+        ]);
+
+        $rawId = intval(preg_replace('/[^0-9]/', '', $id));
+
+        $staff = Staff::where('id', $id)
+            ->orWhere('id', $rawId)
+            ->orWhere('staff_code', $id)
+            ->firstOrFail();
+
+        $user = User::find($staff->user_id);
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User associated with this staff member not found.'
+            ], 404);
+        }
+
+        $user->password = Hash::make($validated['password']);
+        $user->save();
+
+        // Revoke active sessions
+        $user->tokens()->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Password reset successfully.'
+        ]);
+    }
 }

@@ -66,6 +66,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/staff', [AdminApi\StaffController::class, 'index']);
     Route::post('/staff', [AdminApi\StaffController::class, 'store']);
     Route::put('/staff/{id}', [AdminApi\StaffController::class, 'update']);
+    Route::put('/staff/{id}/reset-password', [AdminApi\StaffController::class, 'resetPassword']);
 
     // Clinics Management
     Route::get('/clinics', [AdminApi\ClinicController::class, 'index']);
