@@ -97,7 +97,11 @@ class BookingController extends Controller
                 $request, $bookingFor, $firstName, $lastName, $gender, $dob,
                 $appointmentDate, $startTime, $email, $serviceName, $deferAppointment
             ) {
-                $serviceId = $this->resolveRequestedServiceId($request, $serviceName);
+                // A single booking can cover several services, so the ids arrive
+                // as an array and the first one doubles as the legacy single-id
+                // value the rest of the code and admin still read.
+                $serviceIds = $this->resolveRequestedServiceIds($request, $serviceName);
+                $serviceId = $serviceIds[0] ?? null;
 
                 $attributes = [
                     'first_name' => $firstName,
@@ -116,10 +120,10 @@ class BookingController extends Controller
                 }
 
                 if ($bookingFor === 'other') {
-                    return $this->bookForOther($request, $attributes, $serviceId, $appointmentDate, $startTime, $deferAppointment);
+                    return $this->bookForOther($request, $attributes, $serviceId, $serviceIds, $appointmentDate, $startTime, $deferAppointment);
                 }
 
-                return $this->bookForSelf($request, $attributes, $email, $serviceId, $appointmentDate, $startTime, $deferAppointment);
+                return $this->bookForSelf($request, $attributes, $email, $serviceId, $serviceIds, $appointmentDate, $startTime, $deferAppointment);
             });
         } catch (\Throwable $e) {
             report($e);
@@ -142,6 +146,7 @@ class BookingController extends Controller
         Request $request,
         array $patientAttributes,
         ?int $serviceId,
+        array $serviceIds,
         string $appointmentDate,
         string $startTime,
         bool $deferAppointment = false
@@ -171,7 +176,7 @@ class BookingController extends Controller
         [$appointment, $appointmentExisted] = $deferAppointment
             ? [null, false]
             : $this->recordAppointment(
-                $patientId, $serviceId, $appointmentDate, $startTime, $request->input('notes')
+                $patientId, $serviceId, $serviceIds, $appointmentDate, $startTime, $request->input('notes')
             );
 
         $patient = Patient::find($patientId);
@@ -196,6 +201,7 @@ class BookingController extends Controller
         array $patientAttributes,
         string $email,
         ?int $serviceId,
+        array $serviceIds,
         string $appointmentDate,
         string $startTime,
         bool $deferAppointment = false
@@ -246,7 +252,7 @@ class BookingController extends Controller
         [$appointment, $appointmentExisted] = $deferAppointment
             ? [null, false]
             : $this->recordAppointment(
-                $patientId, $serviceId, $appointmentDate, $startTime, $request->input('notes')
+                $patientId, $serviceId, $serviceIds, $appointmentDate, $startTime, $request->input('notes')
             );
 
         return response()->json([
@@ -318,6 +324,7 @@ class BookingController extends Controller
     private function recordAppointment(
         int $patientId,
         ?int $serviceId,
+        array $serviceIds,
         string $appointmentDate,
         string $startTime,
         $notes
@@ -329,7 +336,7 @@ class BookingController extends Controller
 
         $attributes = [
             'service_id'       => $serviceId,
-            'service_ids'      => $serviceId !== null ? [$serviceId] : null,
+            'service_ids'      => $serviceIds !== [] ? $serviceIds : ($serviceId !== null ? [$serviceId] : null),
             'appointment_date' => $appointmentDate,
             'start_time'       => $startTime,
             'notes'            => $this->nullableString($notes, 2000),
@@ -436,6 +443,41 @@ class BookingController extends Controller
         return $this->resolveServiceId($serviceName);
     }
 
+    /**
+     * The services a booking covers, in the order the wizard picked them.
+     *
+     * A multi-service booking sends `service_ids` as an array, so every id is
+     * checked against `services` and duplicates are dropped before the list is
+     * trusted. When the array is missing or empty the single-id path — explicit
+     * `service_id`, then the best-effort name lookup — is used, so older callers
+     * keep working unchanged and the wizard's fallback to "General
+     * Consultation" still resolves (or stays null) as before.
+     */
+    private function resolveRequestedServiceIds(Request $request, string $serviceName): array
+    {
+        $requested = $request->input('service_ids');
+
+        if (is_array($requested) && $requested !== []) {
+            $ids = [];
+            foreach ($requested as $value) {
+                if (!is_numeric($value)) {
+                    continue;
+                }
+                $id = (int) $value;
+                if ($id > 0 && !in_array($id, $ids, true) && DB::table('services')->where('id', $id)->exists()) {
+                    $ids[] = $id;
+                }
+            }
+            if ($ids !== []) {
+                return $ids;
+            }
+        }
+
+        $single = $this->resolveRequestedServiceId($request, $serviceName);
+
+        return $single !== null ? [$single] : [];
+    }
+
     private function presentCustomer(Customer $customer): array
     {
         return [
@@ -490,12 +532,38 @@ class BookingController extends Controller
         $service = null;
         $category = null;
 
-        if ($appointment->service_id) {
-            $service = DB::table('services')->where('id', $appointment->service_id)->first();
-            if ($service && $service->category_id) {
-                $category = DB::table('categories')->where('id', $service->category_id)->first();
-            }
+        // A booking can cover several services, so the whole list is read and
+        // the first row doubles as the primary service the bookmark link and
+        // category are taken from.
+        $storedServiceIds = $appointment->service_ids;
+        if (is_array($storedServiceIds) && count($storedServiceIds) > 0) {
+            $serviceRows = DB::table('services')->whereIn('id', $storedServiceIds)->get();
+        } elseif ($appointment->service_id) {
+            $row = DB::table('services')->where('id', $appointment->service_id)->first();
+            $serviceRows = $row ? collect([$row]) : collect();
+        } else {
+            $serviceRows = collect();
         }
+
+        $service = $serviceRows->first();
+        if ($service && $service->category_id) {
+            $category = DB::table('categories')->where('id', $service->category_id)->first();
+        }
+
+        $serviceNames = $serviceRows
+            ->map(fn ($row) => $row->title ?? $row->service_name)
+            ->filter()
+            ->values();
+
+        // Multi-service bookings carry several prices, so the card shows the sum
+        // while `service_price` keeps the primary row's price for single-service
+        // callers. Prices are decimals in the `services` table; anything null or
+        // non-numeric (e.g. POA) is skipped from the total.
+        $totalPrice = $serviceRows
+            ->pluck('price')
+            ->filter(fn ($price) => $price !== null && is_numeric($price))
+            ->map(fn ($price) => (float) $price)
+            ->sum();
 
         $patient = Patient::find($appointment->patient_id);
 
@@ -509,9 +577,16 @@ class BookingController extends Controller
                     ->filter()->implode(' ')
                 : null,
             'service_id'       => $appointment->service_id ? (int) $appointment->service_id : null,
+            'service_ids'      => is_array($storedServiceIds)
+                ? array_map('intval', $storedServiceIds)
+                : ($appointment->service_id ? [(int) $appointment->service_id] : []),
+            // `service_name` stays the primary one so the "book again" slug
+            // keeps resolving; `service_names` carries every service for display.
             'service_name'     => $service->title ?? $service->service_name ?? null,
+            'service_names'    => $serviceNames->implode(' + '),
             'service_group'    => $service->service_name ?? null,
             'service_price'    => isset($service->price) ? (string) $service->price : null,
+            'total_price'      => $totalPrice > 0 ? (string) round($totalPrice, 2) : null,
             'category_name'    => $category->name ?? null,
             'category_slug'    => $category->slug ?? null,
             'appointment_date' => $appointment->appointment_date?->format('Y-m-d'),
@@ -535,6 +610,9 @@ class BookingController extends Controller
             'appointment_code' => $appointment->appointment_code,
             'patient_id'       => (int) $appointment->patient_id,
             'service_id'       => $appointment->service_id ? (int) $appointment->service_id : null,
+            'service_ids'      => is_array($appointment->service_ids)
+                ? array_map('intval', $appointment->service_ids)
+                : ($appointment->service_id ? [(int) $appointment->service_id] : []),
             'appointment_date' => $appointment->appointment_date?->format('Y-m-d'),
             'start_time'       => $this->formatTime($appointment->start_time),
             'status'           => $appointment->status,
@@ -777,7 +855,10 @@ class BookingController extends Controller
                 ], 422);
             }
 
-            $serviceId = $this->resolveRequestedServiceId($request, $serviceName);
+            // A single booking can cover several services, so the ids arrive as
+            // an array; the first one doubles as the legacy single-id value.
+            $serviceIds = $this->resolveRequestedServiceIds($request, $serviceName);
+            $serviceId = $serviceIds[0] ?? null;
 
             // Taking the payment for a slot that "Continue to Payment" already
             // inserted: that row is settled rather than duplicated, so the
@@ -797,7 +878,7 @@ class BookingController extends Controller
                 if (!$heldAppointment->service_id && $serviceId !== null) {
                     $heldAppointment->update([
                         'service_id'  => $serviceId,
-                        'service_ids' => [$serviceId],
+                        'service_ids' => $serviceIds !== [] ? $serviceIds : [$serviceId],
                     ]);
                 }
 
@@ -823,7 +904,7 @@ class BookingController extends Controller
             $appointment = new Appointment([
                 'patient_id'       => $patient->id,
                 'service_id'       => $serviceId,
-                'service_ids'      => $serviceId !== null ? [$serviceId] : null,
+                'service_ids'      => $serviceIds !== [] ? $serviceIds : ($serviceId !== null ? [$serviceId] : null),
                 'appointment_date' => $appointmentDate,
                 'start_time'       => $startTime,
                 'notes'            => $notes,
