@@ -27,21 +27,9 @@ class AuthController extends Controller
                     ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            // For development fallback / initial admin bootstrap if no user in DB yet:
-            if ($request->username === 'admin' && $request->password === 'admin123') {
-                $user = User::firstOrCreate(
-                    ['email' => 'admin@insight.com'],
-                    [
-                        'name' => 'Super Admin',
-                        'password' => Hash::make('admin123'),
-                        'role' => 'super_admin'
-                    ]
-                );
-            } else {
-                return response()->json([
-                    'message' => 'Invalid credentials'
-                ], 401);
-            }
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
         }
 
         // Fetch or create associated Staff profile
