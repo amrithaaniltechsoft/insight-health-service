@@ -90,7 +90,19 @@
         width: 100%;
         border-top: 2px solid #000;
         margin: 0;
-        padding: 0;
+        padding: 6px 8px;
+        text-align: center;
+        line-height: 1.5;
+        /* Gold footer band. The flat colour is the fallback; the real gradient
+           artwork (same band, text stripped) sits on top of it. */
+        background-color: #e5b243;
+        @if (!empty($v['footerBg']))
+            background-image: url("{{ $v['footerBg'] }}");
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+        @endif
+        /* Footer text size: the knob to make the footer bigger/smaller. */
+        font-size: 16px;
     }
 </style>
 </head>
@@ -220,9 +232,14 @@
             </tbody>
         </table>
 
-        @if ($v['footerSrc'])
-            <img src="{{ $v['footerSrc'] }}" class="footer-band" alt="">
-        @endif
+        {{-- Footer contact strip. Real text (not the old JPG) so the size
+             is controlled by .footer-band font-size above. --}}
+        <div class="footer-band">
+            1A Walsall Road, Walsall, WS5 4QL
+            &nbsp;&middot;&nbsp; Phone: 01922 351933, 07777 138 166<br>
+            www.insighthealthservices.co.uk
+            &nbsp;&middot;&nbsp; bookings@insighthealthservices.co.uk
+        </div>
     </div>
 </body>
 </html>

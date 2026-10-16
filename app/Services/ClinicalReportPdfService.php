@@ -110,7 +110,9 @@ class ClinicalReportPdfService
             'chaperone'         => $this->text($data['chaperone'] ?? ''),
             'status'            => (string) ($report->status ?? ''),
             'logoSrc'           => $this->imageDataUri('reports/letterhead.jpg'),
-            'footerSrc'         => $this->imageDataUri('reports/footer-band.jpg'),
+            // Gold footer band artwork (text stripped) used as the CSS background
+            // so the contact details can stay as real, resizable text.
+            'footerBg'          => $this->imageDataUri('reports/footer-band-clean.jpg'),
         ];
     }
 

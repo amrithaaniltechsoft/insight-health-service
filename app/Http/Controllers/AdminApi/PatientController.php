@@ -5,6 +5,7 @@ namespace App\Http\Controllers\AdminApi;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Patient;
+use App\Models\Staff;
 use Illuminate\Http\Request;
 
 class PatientController extends Controller
@@ -247,6 +248,26 @@ class PatientController extends Controller
     public function patientsIndex(Request $request)
     {
         $query = Patient::with(['customer', 'appointments.service']);
+
+        // ?assigned=1 -> only patients that have an appointment with a clinician
+        // assigned (appointments.staff_id). Opt-in so the Patient Profiles
+        // listing keeps showing every patient.
+        if ($request->boolean('assigned')) {
+            // Same user -> staff lookup as AuthController::login / ::me.
+            $user = $request->user();
+            $staff = $user
+                ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first()
+                : null;
+
+            // A clinician only sees the patients whose appointment is assigned
+            // to THEM; admin / reception see every patient with any clinician.
+            $query->whereHas('appointments', function ($q) use ($staff) {
+                $q->whereNotNull('staff_id');
+                if ($staff && $staff->role === 'clinician') {
+                    $q->where('staff_id', $staff->id);
+                }
+            });
+        }
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;
