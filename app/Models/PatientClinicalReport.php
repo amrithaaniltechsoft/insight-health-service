@@ -55,4 +55,9 @@ class PatientClinicalReport extends Model
     {
         return $this->belongsTo(Staff::class, 'clinician_id');
     }
+
+    public function reportValue()
+    {
+        return $this->hasOne(ReportValue::class, 'clinical_report_id');
+    }
 }

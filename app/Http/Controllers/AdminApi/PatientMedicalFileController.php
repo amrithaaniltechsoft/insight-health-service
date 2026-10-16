@@ -4,7 +4,9 @@ namespace App\Http\Controllers\AdminApi;
 
 use App\Http\Controllers\Controller;
 use App\Models\Patient;
+use App\Models\PatientClinicalReport;
 use App\Models\PatientMedicalFile;
+use App\Models\ReportValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -112,6 +114,28 @@ class PatientMedicalFileController extends Controller
     {
         $file = PatientMedicalFile::where('id', $fileId)->firstOrFail();
 
+        // A generated clinical report lives across three tables: the medical
+        // file shown in the vault, the report itself (patient_clinical_reports)
+        // and its raw form values (report_values). Deleting the file must clean
+        // up all of them — plus the stored PDF — so nothing is left orphaned
+        // (an orphaned report would still appear on the patient portal even
+        // though its PDF is gone).
+        $reportCode = $file->file_name
+            ? pathinfo($file->file_name, PATHINFO_FILENAME)
+            : pathinfo(basename((string) $file->file_path), PATHINFO_FILENAME);
+
+        if ($reportCode) {
+            $reports = PatientClinicalReport::where('patient_id', $file->patient_id)
+                ->where('report_code', $reportCode)
+                ->get();
+
+            foreach ($reports as $report) {
+                ReportValue::where('clinical_report_id', $report->id)->delete();
+                $report->delete();
+            }
+        }
+
+        // Remove the stored document (generated PDF or uploaded file).
         if ($file->file_path && Storage::disk('public')->exists($file->file_path)) {
             Storage::disk('public')->delete($file->file_path);
         }

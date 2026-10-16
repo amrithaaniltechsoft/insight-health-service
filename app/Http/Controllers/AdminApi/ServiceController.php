@@ -21,6 +21,7 @@ class ServiceController extends Controller
                 'id' => $s->id,
                 'title' => $name,
                 'name' => $name,
+                'service_name' => $s->service_name,
                 'category' => $categoryName,
                 'subCategory' => $s->subCategory ? $s->subCategory->name : null,
                 'price' => (float) $s->price,

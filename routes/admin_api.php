@@ -50,6 +50,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/patients/{patientId}/clinical-reports', [AdminApi\PatientClinicalReportController::class, 'index']);
     Route::post('/patients/{patientId}/clinical-reports', [AdminApi\PatientClinicalReportController::class, 'store']);
     Route::get('/patients/{patientId}/clinical-reports/{reportId}', [AdminApi\PatientClinicalReportController::class, 'show']);
+    Route::delete('/patients/{patientId}/clinical-reports/{reportId}', [AdminApi\PatientClinicalReportController::class, 'destroy']);
+    // Report-type picker options: the patient's booked services minus the ones
+    // that already have a report.
+    Route::get('/patients/{patientId}/clinical-report-options', [AdminApi\PatientClinicalReportController::class, 'reportOptions']);
 
     Route::get('/customers', [AdminApi\PatientController::class, 'customersIndex']);
     Route::post('/customers', [AdminApi\PatientController::class, 'store']);

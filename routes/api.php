@@ -54,6 +54,13 @@ Route::post('/bookings', [App\Http\Controllers\Api\BookingController::class, 'st
 Route::post('/bookings/confirm', [App\Http\Controllers\Api\BookingController::class, 'confirm']);
 Route::get('/bookings', [App\Http\Controllers\Api\BookingController::class, 'index']);
 
+// Clinical reports created through the admin portal, listed for the signed-in
+// customer's patients on the frontend's "My Bookings" page.
+Route::get('/reports', [App\Http\Controllers\Api\PatientReportController::class, 'index']);
+// A report's generated PDF (created when the report is saved; regenerated on
+// demand if missing).
+Route::get('/reports/{id}/pdf', [App\Http\Controllers\Api\PatientReportController::class, 'pdf']);
+
 // Auth API routes
 Route::post('/auth/send-otp', [App\Http\Controllers\Api\AuthController::class, 'sendOtp']);
 Route::post('/auth/verify-otp', [App\Http\Controllers\Api\AuthController::class, 'verifyOtp']);

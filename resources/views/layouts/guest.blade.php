@@ -8,7 +8,7 @@
         <title>Insight</title>
 
         <!-- Fonts -->
-        <link rel="icon" type="image/webp" href="{{ asset('vendor/adminlte/dist/img/logo2.webp') }}">
+        <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
