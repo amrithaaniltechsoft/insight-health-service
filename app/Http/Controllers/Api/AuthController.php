@@ -76,7 +76,18 @@ class AuthController extends Controller
 
         DB::table('otps')->where('id', $record->id)->update(['used' => true]);
 
-        return response()->json(['message' => 'OTP verified successfully.']);
+        // A verified OTP proves ownership of the email address, so it starts a
+        // session: this token is what identifies the caller to the customer API,
+        // replacing the old "whoever knows the email owns the account" checks.
+        // Accounts are created after verification, so a visitor who has not
+        // registered yet simply gets no token and the frontend continues with
+        // its registration step.
+        $customer = Customer::where('email', $request->email)->first();
+
+        return response()->json([
+            'message' => 'OTP verified successfully.',
+            'token'   => $customer ? $customer->createToken('customer-portal')->plainTextToken : null,
+        ]);
     }
 
     public function checkCustomer(Request $request): JsonResponse
@@ -134,8 +145,11 @@ class AuthController extends Controller
             'password'   => Hash::make(Str::random(32)),
         ]);
 
+        // Registration follows a verified OTP in the sign-in flow, so the new
+        // account is started as a signed-in session here as well.
         return response()->json([
             'message' => 'Account created successfully.',
+            'token'   => $customer->createToken('customer-portal')->plainTextToken,
             'customer' => [
                 'id'         => $customer->id,
                 'first_name' => $customer->first_name,

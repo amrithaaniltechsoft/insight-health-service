@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * "My People" — the family and friends a customer books for.
@@ -42,22 +43,66 @@ class PeopleController extends Controller
     ];
 
     /**
+     * Identifies the customer behind a /api/people request.
+     *
+     * A Sanctum token — issued when an OTP is verified — is preferred and wins
+     * outright, so the `customer_email` parameter can never be used to read,
+     * edit or delete somebody else's people. Until every deployed frontend
+     * sends a token (and while `people_api.require_token` is false) the email
+     * parameter is still accepted, exactly as before, so nothing that is live
+     * today breaks.
+     *
+     * Returns null when the request carries no usable identity. The caller
+     * decides what that means: with enforcement on it is a 401, with it off it
+     * falls through to the legacy email behaviour.
+     */
+    private function customerFromRequest(Request $request): ?Customer
+    {
+        $plain = (string) $request->bearerToken();
+
+        if ($plain !== '') {
+            $token = PersonalAccessToken::findToken($plain);
+
+            // A missing, expired or non-customer token is not an identity.
+            // With enforcement on that is a 401; with it off the request just
+            // continues down the legacy email path below, exactly as a request
+            // that carried no token at all.
+            return $token && $token->tokenable instanceof Customer ? $token->tokenable : null;
+        }
+
+        if (config('people_api.require_token')) {
+            return null;
+        }
+
+        $email = strtolower(trim((string) $request->input('customer_email', '')));
+
+        return $email === '' ? null : Customer::where('email', $email)->first();
+    }
+
+    /**
      * Lists the signed-in customer's people, excluding the row that represents
      * the customer themself (the one carrying their own email), so the list only
      * ever shows family and friends.
      */
     public function index(Request $request): JsonResponse
     {
-        $email = (string) $request->query('customer_email', '');
-        if ($email === '') {
-            return response()->json(['message' => 'A customer email is required.'], 422);
+        $customer = $this->customerFromRequest($request);
+
+        // With enforcement on, an email address alone is no longer proof of
+        // identity, so a request without a token is refused outright.
+        if (!$customer && config('people_api.require_token')) {
+            return response()->json(['message' => 'Please sign in to view your people.'], 401);
         }
 
-        $customer = Customer::where('email', $email)->first();
-
-        // No customer row means no people — a guest, or someone who has not
-        // registered. That is an empty list, not an error.
+        // Legacy email path (enforcement off): an unknown address means no
+        // people — a guest, or someone who has not registered. That is an
+        // empty list, not an error.
         if (!$customer) {
+            $email = (string) $request->query('customer_email', '');
+            if ($email === '') {
+                return response()->json(['message' => 'A customer email is required.'], 422);
+            }
+
             return response()->json(['people' => [], 'customer_found' => false]);
         }
 
@@ -85,16 +130,27 @@ class PeopleController extends Controller
     /** Adds a person, or updates one when `patient_id` identifies a row they own. */
     public function store(Request $request): JsonResponse
     {
+        $customer = $this->customerFromRequest($request);
+
+        if (!$customer && config('people_api.require_token')) {
+            return response()->json(['message' => 'Please sign in to manage your people.'], 401);
+        }
+
         $request->validate([
-            'customer_email' => 'required|email|max:255',
+            // With a token the identity comes from the token, so the email is
+            // decoration; without one it is still what identifies the account
+            // and stays required, so the deployed frontend keeps working.
+            'customer_email' => $customer ? 'nullable|email|max:255' : 'required|email|max:255',
             'first_name'     => 'required|string|max:255',
             'last_name'      => 'required|string|max:255',
             'patient_id'     => 'nullable|integer',
         ]);
 
-        $customer = Customer::where('email', $request->customer_email)->first();
         if (!$customer) {
-            return response()->json(['message' => 'We could not find your account.'], 404);
+            $customer = Customer::where('email', $request->customer_email)->first();
+            if (!$customer) {
+                return response()->json(['message' => 'We could not find your account.'], 404);
+            }
         }
 
         $patient = null;
@@ -158,16 +214,23 @@ class PeopleController extends Controller
      */
     public function destroy(Request $request): JsonResponse
     {
+        $customer = $this->customerFromRequest($request);
         $email = (string) $request->query('customer_email', '');
         $patientId = $request->query('patient_id');
 
-        if ($email === '' || !is_numeric($patientId)) {
+        if (!$customer && config('people_api.require_token')) {
+            return response()->json(['message' => 'Please sign in to manage your people.'], 401);
+        }
+
+        if ((!$customer && $email === '') || !is_numeric($patientId)) {
             return response()->json(['message' => 'A valid person is required.'], 422);
         }
 
-        $customer = Customer::where('email', $email)->first();
         if (!$customer) {
-            return response()->json(['message' => 'We could not find your account.'], 404);
+            $customer = Customer::where('email', $email)->first();
+            if (!$customer) {
+                return response()->json(['message' => 'We could not find your account.'], 404);
+            }
         }
 
         $patient = Patient::where('id', (int) $patientId)
