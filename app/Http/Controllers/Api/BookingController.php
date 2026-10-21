@@ -914,6 +914,12 @@ class BookingController extends Controller
             ]);
             $appointment->save();
 
+            try {
+                \App\Services\NotificationService::notifyAppointmentCreated($appointment->fresh(['patient', 'service']), null);
+            } catch (\Throwable $e) {
+                \Log::warning("Notification dispatch failed on online booking: " . $e->getMessage());
+            }
+
             // Holding the slot does not take a payment, so there is nothing to
             // write to `payments` yet.
             if (!$recordPayment) {

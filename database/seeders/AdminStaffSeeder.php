@@ -82,7 +82,20 @@ class AdminStaffSeeder extends Seeder
                 'specialization' => 'Lead Sonographer & Obstetrics',
                 'phone' => '+44 7700 900004',
             ],
+            [
+                'username' => 'sarah.jenkins',
+                'email' => 'sarah.jenkins@insight.com',
+                'password' => 'Password123!',
+                'name' => 'Dr. Sarah Jenkins',
+                'first_name' => 'Sarah',
+                'last_name' => 'Jenkins',
+                'role' => 'clinician',
+                'staff_code' => 'STF-0005',
+                'specialization' => 'Lead Consultant Sonographer',
+                'phone' => '+44 7700 900005',
+            ],
         ];
+
 
         foreach ($accounts as $acc) {
             // Create or update User

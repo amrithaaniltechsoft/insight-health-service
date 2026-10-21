@@ -94,6 +94,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // System Notifications
     Route::get('/notifications', [AdminApi\NotificationController::class, 'index']);
+    Route::put('/notifications/mark-all-read', [AdminApi\NotificationController::class, 'markAllAsRead']);
     Route::put('/notifications/{id}/read', [AdminApi\NotificationController::class, 'markAsRead']);
 
     // Global Clinic Settings

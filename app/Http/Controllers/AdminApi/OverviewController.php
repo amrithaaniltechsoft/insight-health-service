@@ -114,8 +114,25 @@ class OverviewController extends Controller
             ->get()
             ->map($mapAppointment);
 
-        // 7. Recent Notifications
-        $notifications = AdminNotification::orderBy('created_at', 'desc')
+        // 7. Recent Notifications (Role-scoped to avoid overload)
+        $user = $request->user();
+        $notifQuery = AdminNotification::orderBy('created_at', 'desc');
+        if ($user) {
+            $staff = Staff::where('user_id', $user->id)->first();
+            $role = $staff ? $staff->role : ($user->role ?? 'super_admin');
+            if ($role === 'clinician') {
+                $notifQuery->where('user_id', $user->id);
+            } else {
+                $notifQuery->where('message', 'not like', 'You have been assigned to%')
+                    ->where(function ($q) {
+                        $q->where('event_type', '!=', 'appointment.assigned')
+                          ->orWhereNull('event_type');
+                    });
+            }
+        }
+
+
+        $notifications = $notifQuery
             ->limit(5)
             ->get()
             ->map(function ($notif) {
@@ -124,10 +141,12 @@ class OverviewController extends Controller
                     'type' => $notif->type ?? 'System',
                     'title' => $notif->title,
                     'message' => $notif->message,
+                    'priority' => $notif->priority ?? 'normal',
                     'isRead' => (bool)$notif->is_read,
                     'time' => $notif->created_at ? $notif->created_at->diffForHumans() : 'Recently',
                 ];
             });
+
 
         // 8. Staff / Clinicians on duty today
         $clinicians = Staff::where('status', 'active')

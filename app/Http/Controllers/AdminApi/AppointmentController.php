@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\Staff;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -312,6 +313,13 @@ class AppointmentController extends Controller
             'notes' => $notesText,
         ]);
 
+        $actorId = $request->user() ? $request->user()->id : null;
+        try {
+            NotificationService::notifyAppointmentCreated($appointment->fresh(['patient', 'service', 'staff']), $actorId);
+        } catch (\Throwable $e) {
+            \Log::warning("Notification dispatch failed: " . $e->getMessage());
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'Appointment created successfully',
@@ -325,6 +333,12 @@ class AppointmentController extends Controller
             ->orWhere('appointment_code', $id)
             ->firstOrFail();
 
+        // Capture previous state for delta detection
+        $oldStatus = $appointment->status;
+        $oldStaffId = $appointment->staff_id;
+        $oldDate = $appointment->appointment_date ? (is_string($appointment->appointment_date) ? $appointment->appointment_date : $appointment->appointment_date->format('Y-m-d')) : '';
+        $oldTime = $appointment->start_time;
+
         $validated = $request->validate([
             'status' => 'nullable|string',
             'payment_status' => 'nullable|string',
@@ -334,6 +348,7 @@ class AppointmentController extends Controller
             'appointment_date' => 'nullable|date',
             'start_time' => 'nullable',
             'notes' => 'nullable|string',
+            'cancellation_reason' => 'nullable|string',
         ]);
 
         $updateData = [];
@@ -412,12 +427,43 @@ class AppointmentController extends Controller
             $appointment->update($updateData);
         }
 
+        $freshApt = $appointment->fresh(['patient', 'service', 'staff']);
+        $actorId = $request->user() ? $request->user()->id : null;
+
+        try {
+            // Trigger 1: Allotment / Assignment to clinician
+            if (isset($updateData['staff_id']) && $updateData['staff_id'] != $oldStaffId) {
+                NotificationService::notifyAppointmentAssigned($freshApt, (int)$updateData['staff_id'], $oldStaffId ? (int)$oldStaffId : null, $actorId);
+            }
+
+            // Trigger 2: Rescheduled (Date or Time altered)
+            $dateChanged = isset($updateData['appointment_date']) && $updateData['appointment_date'] != $oldDate;
+            $timeChanged = isset($updateData['start_time']) && $updateData['start_time'] != $oldTime;
+            if ($dateChanged || $timeChanged) {
+                NotificationService::notifyAppointmentRescheduled($freshApt, (string)$oldDate, (string)$oldTime, $actorId);
+            }
+
+            // Trigger 3: Checked-In (Patient Arrival)
+            if (isset($updateData['status']) && $updateData['status'] === 'Checked-In' && $oldStatus !== 'Checked-In') {
+                NotificationService::notifyAppointmentCheckedIn($freshApt, $actorId);
+            }
+
+            // Trigger 4: Cancelled
+            if (isset($updateData['status']) && $updateData['status'] === 'Cancelled' && $oldStatus !== 'Cancelled') {
+                $reason = $validated['cancellation_reason'] ?? $request->input('notes');
+                NotificationService::notifyAppointmentCancelled($freshApt, $reason, $actorId);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning("Notification dispatch failed on update: " . $e->getMessage());
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'Appointment updated successfully',
-            'data' => $appointment->fresh(['patient', 'service', 'staff'])
+            'data' => $freshApt
         ]);
     }
+
 
     public function calendar(Request $request)
     {
