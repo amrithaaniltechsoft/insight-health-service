@@ -18,10 +18,15 @@ class NotificationController extends Controller
         $query = AdminNotification::query();
 
         // Role-based targeting rule:
-        // - Clinicians: strictly see notifications assigned to their own user account
-        // - Reception & Admins: see operational/reception alerts, but NEVER personal clinician assignment alerts ("You have been assigned to...")
+        // - Clinicians: strictly see notifications assigned to their own user account, never receptionist alerts
+        // - Reception: see reception alerts and reassignment notices, but NEVER clinician personal allotment alerts ("You have been assigned to...") or slot-clearing alerts ("Your schedule slot is cleared.")
+        // - Admins: see operational/clinic alerts, but NEVER clinician allotments, slot-clearing alerts, or receptionist reassignment alerts
         if ($userRole === 'clinician') {
-            $query->where('user_id', $user->id);
+            $query->where('user_id', $user->id)
+                  ->where(function ($q) {
+                      $q->where('event_type', '!=', 'appointment.reassigned_reception')
+                        ->orWhereNull('event_type');
+                  });
         } else if ($userRole === 'reception') {
             $query->where(function ($q) use ($user, $staff) {
                 $q->where('user_id', $user->id)
@@ -35,20 +40,27 @@ class NotificationController extends Controller
                   });
             })
             ->where('message', 'not like', 'You have been assigned to%')
+            ->where('message', 'not like', '%Your schedule slot is cleared%')
             ->where(function ($q) {
-                $q->where('event_type', '!=', 'appointment.assigned')
+                $q->whereNotIn('event_type', ['appointment.assigned', 'appointment.reassigned_clinician', 'appointment.reassigned'])
                   ->orWhereNull('event_type');
             });
         } else {
-            // Admin & Super Admin: see system/clinic alerts, but never personal clinician allotment alerts
+            // Admin & Super Admin: see system/clinic alerts, but never personal clinician allotment alerts or reassignment notices
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                   ->orWhereNull('user_id');
             })
             ->where('message', 'not like', 'You have been assigned to%')
+            ->where('message', 'not like', '%Your schedule slot is cleared%')
             ->where(function ($q) {
-                $q->where('event_type', '!=', 'appointment.assigned')
-                  ->orWhereNull('event_type');
+                $q->whereNotIn('event_type', [
+                    'appointment.assigned',
+                    'appointment.reassigned_clinician',
+                    'appointment.reassigned_reception',
+                    'appointment.reassigned'
+                ])
+                ->orWhereNull('event_type');
             });
         }
 

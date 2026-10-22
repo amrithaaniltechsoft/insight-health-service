@@ -93,7 +93,27 @@ class NotificationService
             return null;
         }
 
-        return self::getUserForStaff($staffId);
+        // 1. Look up user by the clinician staff's exact email address first
+        $user = null;
+        if (!empty($staff->email)) {
+            $user = User::where('email', $staff->email)->first();
+        }
+
+        // 2. If not found by email, check user_id while verifying user is not an admin/reception user
+        if (!$user && $staff->user_id) {
+            $candidate = User::find($staff->user_id);
+            if ($candidate) {
+                $isAdministrative = Staff::where('user_id', $candidate->id)
+                    ->whereIn('role', ['super_admin', 'administrator', 'reception'])
+                    ->where('id', '!=', $staff->id)
+                    ->exists();
+                if (!$isAdministrative) {
+                    $user = $candidate;
+                }
+            }
+        }
+
+        return $user;
     }
 
     /**
@@ -170,9 +190,13 @@ class NotificationService
     }
 
     /**
-     * 2. APPOINTMENT ALLOTTED TO A CLINICIAN
-     * Audience: The newly assigned clinician (high priority).
-     * If reassigned, notify the old clinician that their slot is freed.
+     * 2. APPOINTMENT ALLOTTED / REASSIGNED TO A CLINICIAN
+     * Audience:
+     * - Newly assigned clinician: Receives allotment notification with schedule deep-link.
+     * - If reassigned from another clinician:
+     *   - Previously assigned clinician: Receives slot cleared notification.
+     *   - Reception staff: Receives clinician reassignment notification for front-desk coordination.
+     * - Administrators & other clinicians do NOT receive reassignment notifications.
      */
     public static function notifyAppointmentAssigned(Appointment $appointment, int $newStaffId, ?int $oldStaffId = null, ?int $actorUserId = null): void
     {
@@ -183,7 +207,12 @@ class NotificationService
         $dateStr = $appointment->appointment_date ? (is_string($appointment->appointment_date) ? $appointment->appointment_date : $appointment->appointment_date->format('d M Y')) : 'Upcoming';
         $timeStr = $appointment->start_time ? date('g:i A', strtotime($appointment->start_time)) : '';
 
-        // Alert the new clinician (links to their Schedule)
+        $newStaff = Staff::find($newStaffId);
+        $newClinicianName = $newStaff ? trim($newStaff->first_name . ' ' . $newStaff->last_name) : 'a clinician';
+        $oldStaff = $oldStaffId ? Staff::find($oldStaffId) : null;
+        $oldClinicianName = $oldStaff ? trim($oldStaff->first_name . ' ' . $oldStaff->last_name) : null;
+
+        // 1. Alert the newly assigned clinician (links to their Schedule)
         $newUser = self::getUserForClinicianStaff($newStaffId);
         if ($newUser) {
             self::send($newUser, [
@@ -205,22 +234,58 @@ class NotificationService
             ], $actorUserId);
         }
 
-        // If reassigned from another clinician, inform the previous clinician that slot was released
+        // If this is a reassignment from another clinician:
         if ($oldStaffId && $oldStaffId !== $newStaffId) {
+            // 2. Alert ONLY the previous clinician that their slot has been cleared
             $oldUser = self::getUserForClinicianStaff($oldStaffId);
-            if ($oldUser) {
+            if ($oldUser && (!$newUser || $oldUser->id !== $newUser->id)) {
                 self::send($oldUser, [
                     'clinic_id' => $appointment->clinic_id,
                     'actor_id' => $actorUserId,
                     'title' => "Appointment Reassigned: {$code}",
                     'message' => "Appointment {$code} for {$patientName} has been reassigned to another clinician. Your schedule slot is cleared.",
                     'type' => 'appointment',
-                    'event_type' => 'appointment.reassigned',
+                    'event_type' => 'appointment.reassigned_clinician',
                     'priority' => 'normal',
                     'link' => "/dashboard/schedule?date={$dateIso}",
                     'metadata' => [
                         'appointment_id' => $appointment->id,
                         'code' => $code,
+                        'patient_name' => $patientName,
+                        'date' => $dateIso,
+                    ],
+                ], $actorUserId);
+            }
+
+            // 3. Alert Receptionists of the clinician reassignment for front-desk coordination
+            $receptionStaff = Staff::where('role', 'reception')
+                ->where('status', 'active')
+                ->where(function ($q) use ($appointment) {
+                    if ($appointment->clinic_id) {
+                        $q->where('clinic_id', $appointment->clinic_id)->orWhereNull('clinic_id');
+                    }
+                })
+                ->get();
+
+            foreach ($receptionStaff as $staff) {
+                $receptionUser = self::getUserForStaff($staff->id);
+                if (!$receptionUser) continue;
+
+                self::send($receptionUser, [
+                    'clinic_id' => $appointment->clinic_id,
+                    'actor_id' => $actorUserId,
+                    'title' => "Clinician Reassigned: {$code}",
+                    'message' => "Appointment {$code} for {$patientName} has been reassigned" . ($oldClinicianName ? " from {$oldClinicianName}" : "") . " to {$newClinicianName}.",
+                    'type' => 'appointment',
+                    'event_type' => 'appointment.reassigned_reception',
+                    'priority' => 'normal',
+                    'link' => "/dashboard/appointments?search={$code}",
+                    'metadata' => [
+                        'appointment_id' => $appointment->id,
+                        'code' => $code,
+                        'patient_name' => $patientName,
+                        'old_staff_id' => $oldStaffId,
+                        'new_staff_id' => $newStaffId,
                         'date' => $dateIso,
                     ],
                 ], $actorUserId);

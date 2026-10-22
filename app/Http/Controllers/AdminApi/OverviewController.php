@@ -118,16 +118,47 @@ class OverviewController extends Controller
         $user = $request->user();
         $notifQuery = AdminNotification::orderBy('created_at', 'desc');
         if ($user) {
-            $staff = Staff::where('user_id', $user->id)->first();
+            $staff = Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first();
             $role = $staff ? $staff->role : ($user->role ?? 'super_admin');
             if ($role === 'clinician') {
-                $notifQuery->where('user_id', $user->id);
-            } else {
-                $notifQuery->where('message', 'not like', 'You have been assigned to%')
+                $notifQuery->where('user_id', $user->id)
                     ->where(function ($q) {
-                        $q->where('event_type', '!=', 'appointment.assigned')
+                        $q->where('event_type', '!=', 'appointment.reassigned_reception')
                           ->orWhereNull('event_type');
                     });
+            } else if ($role === 'reception') {
+                $notifQuery->where(function ($q) use ($user, $staff) {
+                    $q->where('user_id', $user->id)
+                      ->orWhere(function ($sub) use ($staff) {
+                          $sub->whereNull('user_id');
+                          if ($staff && $staff->clinic_id) {
+                              $sub->where('clinic_id', $staff->clinic_id)->orWhereNull('clinic_id');
+                          }
+                      });
+                })
+                ->where('message', 'not like', 'You have been assigned to%')
+                ->where('message', 'not like', '%Your schedule slot is cleared%')
+                ->where(function ($q) {
+                    $q->whereNotIn('event_type', ['appointment.assigned', 'appointment.reassigned_clinician', 'appointment.reassigned'])
+                      ->orWhereNull('event_type');
+                });
+            } else {
+                // Admin & Super Admin: see system/clinic alerts, but never personal clinician allotment alerts or reassignment notices
+                $notifQuery->where(function ($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                      ->orWhereNull('user_id');
+                })
+                ->where('message', 'not like', 'You have been assigned to%')
+                ->where('message', 'not like', '%Your schedule slot is cleared%')
+                ->where(function ($q) {
+                    $q->whereNotIn('event_type', [
+                        'appointment.assigned',
+                        'appointment.reassigned_clinician',
+                        'appointment.reassigned_reception',
+                        'appointment.reassigned'
+                    ])
+                    ->orWhereNull('event_type');
+                });
             }
         }
 
