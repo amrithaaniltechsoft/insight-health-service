@@ -179,19 +179,25 @@ class OverviewController extends Controller
             });
 
 
-        // 8. Staff / Clinicians on duty today
+        // 8. Staff on duty today (Only clinicians and receptionists - no admins)
         $clinicians = Staff::where('status', 'active')
+            ->whereIn('role', ['clinician', 'reception'])
             ->get()
             ->map(function ($staffMember) use ($today) {
                 $appointmentsCount = Appointment::where('staff_id', $staffMember->id)
                     ->whereDate('appointment_date', $today)
                     ->count();
 
+                $specialization = $staffMember->specialization;
+                if (empty($specialization)) {
+                    $specialization = $staffMember->role === 'reception' ? 'Receptionist' : 'Clinical Specialist';
+                }
+
                 return [
                     'id' => $staffMember->id,
                     'name' => trim($staffMember->first_name . ' ' . $staffMember->last_name),
                     'role' => $staffMember->role,
-                    'specialization' => $staffMember->specialization ?? 'Clinical Specialist',
+                    'specialization' => $specialization,
                     'availability' => $staffMember->availability ?? 'available',
                     'todayAppointmentsCount' => $appointmentsCount,
                 ];
