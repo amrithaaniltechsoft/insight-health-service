@@ -281,7 +281,12 @@ class PatientController extends Controller
             });
         }
 
-        $patients = $query->orderBy('created_at', 'desc')->get()->map(function($p) {
+        $perPage = intval($request->query('per_page', 50));
+        if ($perPage <= 0 || $perPage > 200) $perPage = 50;
+
+        $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+        $patients = collect($paginated->items())->map(function($p) {
             $fullName = trim(($p->first_name ?? '') . ' ' . ($p->last_name ?? ''));
             if (empty($fullName) && !empty($p->name)) $fullName = $p->name;
             if (empty($fullName)) $fullName = 'Patient #' . $p->id;
@@ -325,7 +330,13 @@ class PatientController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data' => $patients
+            'data' => $patients,
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ]
         ]);
     }
 
@@ -344,7 +355,12 @@ class PatientController extends Controller
             });
         }
 
-        $customers = $query->orderBy('created_at', 'desc')->get()->map(function($c) {
+        $perPage = intval($request->query('per_page', 50));
+        if ($perPage <= 0 || $perPage > 200) $perPage = 50;
+
+        $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+        $customers = collect($paginated->items())->map(function($c) {
             $fullName = trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? ''));
             if (empty($fullName)) {
                 $fullName = 'Customer #' . $c->id;
@@ -372,7 +388,13 @@ class PatientController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data' => $customers
+            'data' => $customers,
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ]
         ]);
     }
 

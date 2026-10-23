@@ -18,8 +18,11 @@ class OverviewController extends Controller
     public function stats(Request $request)
     {
         $today = Carbon::today();
+        $todayStr = $today->toDateString();
         $startOfWeek = Carbon::now()->startOfWeek();
         $startOfMonth = Carbon::now()->startOfMonth();
+        $startOfToday = Carbon::today()->startOfDay();
+        $endOfToday = Carbon::today()->endOfDay();
 
         $user = $request->user();
         $staff = $user ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first() : null;
@@ -35,16 +38,16 @@ class OverviewController extends Controller
             }
         }
 
-        // 1. Appointment Counts (strictly isolated to clinician when applicable)
-        $todayAppointmentsCount = (clone $baseAptQuery)->whereDate('appointment_date', $today)->count();
-        $checkedInTodayCount = (clone $baseAptQuery)->whereDate('appointment_date', $today)
+        // 1. Appointment Counts (strictly isolated to clinician when applicable - uses index on appointment_date)
+        $todayAppointmentsCount = (clone $baseAptQuery)->where('appointment_date', $todayStr)->count();
+        $checkedInTodayCount = (clone $baseAptQuery)->where('appointment_date', $todayStr)
             ->where('status', 'Checked-In')
             ->count();
-        $completedTodayCount = (clone $baseAptQuery)->whereDate('appointment_date', $today)
+        $completedTodayCount = (clone $baseAptQuery)->where('appointment_date', $todayStr)
             ->where('status', 'Completed')
             ->count();
         $pendingAppointmentsCount = (clone $baseAptQuery)->whereIn('status', ['Pending', 'Scheduled'])
-            ->whereDate('appointment_date', '>=', $today)
+            ->where('appointment_date', '>=', $todayStr)
             ->count();
 
         // 2. Patient Counts
@@ -60,13 +63,13 @@ class OverviewController extends Controller
         }
         $pendingNotesCount = $notesQuery->count();
 
-        // 4. Financial Totals
+        // 4. Financial Totals (uses index range scan on created_at instead of whereDate)
         $totalRevenue = Payment::where('status', 'Paid')->sum('amount_paid');
         $todayRevenue = Payment::where('status', 'Paid')
-            ->whereDate('created_at', $today)
+            ->whereBetween('created_at', [$startOfToday, $endOfToday])
             ->sum('amount_paid');
         $monthRevenue = Payment::where('status', 'Paid')
-            ->whereDate('created_at', '>=', $startOfMonth)
+            ->where('created_at', '>=', $startOfMonth)
             ->sum('amount_paid');
 
         // Helper mapper for appointments
@@ -111,7 +114,7 @@ class OverviewController extends Controller
                 'service' => $serviceDisplay,
                 'time' => $apt->start_time ? date('g:i A', strtotime($apt->start_time)) : '',
                 'rawTime' => $apt->start_time,
-                'date' => $apt->appointment_date ? $apt->appointment_date->format('Y-m-d') : '',
+                'date' => $apt->appointment_date ? (is_string($apt->appointment_date) ? $apt->appointment_date : $apt->appointment_date->format('Y-m-d')) : '',
                 'status' => $apt->status,
                 'paymentStatus' => $apt->payment_status,
                 'clinician' => $apt->staff ? trim($apt->staff->first_name . ' ' . $apt->staff->last_name) : 'Unassigned',
@@ -119,9 +122,9 @@ class OverviewController extends Controller
             ];
         };
 
-        // 5. Today's Appointments (strictly scoped for clinicians)
-        $todayQuery = Appointment::with(['patient', 'service', 'staff'])
-            ->whereDate('appointment_date', $today)
+        // 5. Today's Appointments (strictly scoped for clinicians, eager-loads patient.customer)
+        $todayQuery = Appointment::with(['patient.customer', 'service', 'staff'])
+            ->where('appointment_date', $todayStr)
             ->orderBy('start_time', 'asc');
 
         if ($isClinician) {
@@ -134,8 +137,8 @@ class OverviewController extends Controller
 
         $todayAppointments = $todayQuery->get()->map($mapAppointment);
 
-        // 6. Recent Appointments (Fallback or activity log - scoped for clinicians)
-        $recentQuery = Appointment::with(['patient', 'service', 'staff'])
+        // 6. Recent Appointments (Fallback or activity log - scoped for clinicians, eager-loads patient.customer)
+        $recentQuery = Appointment::with(['patient.customer', 'service', 'staff'])
             ->orderBy('appointment_date', 'desc')
             ->orderBy('start_time', 'desc')
             ->limit(10);
@@ -215,13 +218,18 @@ class OverviewController extends Controller
 
 
         // 8. Staff on duty today (Only clinicians and receptionists - no admins)
+        // Pre-aggregate today's appointments by staff_id to eliminate N+1 queries in the loop
+        $staffAptCounts = Appointment::where('appointment_date', $todayStr)
+            ->whereNotNull('staff_id')
+            ->groupBy('staff_id')
+            ->selectRaw('staff_id, count(*) as total')
+            ->pluck('total', 'staff_id');
+
         $clinicians = Staff::where('status', 'active')
             ->whereIn('role', ['clinician', 'reception'])
             ->get()
-            ->map(function ($staffMember) use ($today) {
-                $appointmentsCount = Appointment::where('staff_id', $staffMember->id)
-                    ->whereDate('appointment_date', $today)
-                    ->count();
+            ->map(function ($staffMember) use ($staffAptCounts) {
+                $appointmentsCount = (int) ($staffAptCounts[$staffMember->id] ?? 0);
 
                 $specialization = $staffMember->specialization;
                 if (empty($specialization)) {
