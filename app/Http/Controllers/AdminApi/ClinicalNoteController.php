@@ -11,12 +11,33 @@ use Carbon\Carbon;
 
 class ClinicalNoteController extends Controller
 {
-    public function showByAppointment($appointmentId)
+    public function showByAppointment(Request $request, $appointmentId)
     {
-        $appointment = Appointment::with(['patient', 'service', 'staff'])
-            ->where('id', $appointmentId)
-            ->orWhere('appointment_code', $appointmentId)
-            ->firstOrFail();
+        $user = $request->user();
+        $staff = $user ? \App\Models\Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first() : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
+
+        $aptQuery = Appointment::with(['patient', 'service', 'staff'])
+            ->where(function($q) use ($appointmentId) {
+                $q->where('id', $appointmentId)
+                  ->orWhere('appointment_code', $appointmentId);
+            });
+
+        if ($isClinician) {
+            if ($staff) {
+                $aptQuery->where('staff_id', $staff->id);
+            } else {
+                $aptQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $appointment = $aptQuery->first();
+        if (!$appointment) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Appointment not found or not allotted to your clinician account.'
+            ], 403);
+        }
 
         $note = ClinicalNote::where('appointment_id', $appointment->id)->first();
         $patient = $appointment->patient;
@@ -262,9 +283,30 @@ class ClinicalNoteController extends Controller
             }
         }
 
-        $appointment = Appointment::where('id', $appointmentId)
-            ->orWhere('appointment_code', $appointmentId)
-            ->firstOrFail();
+        $user = $request->user();
+        $staff = $user ? \App\Models\Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first() : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
+
+        $aptQuery = Appointment::where(function($q) use ($appointmentId) {
+            $q->where('id', $appointmentId)
+              ->orWhere('appointment_code', $appointmentId);
+        });
+
+        if ($isClinician) {
+            if ($staff) {
+                $aptQuery->where('staff_id', $staff->id);
+            } else {
+                $aptQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $appointment = $aptQuery->first();
+        if (!$appointment) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Appointment not found or not allotted to your clinician account.'
+            ], 403);
+        }
 
         $validated = $request->validate([
             'subjective' => 'nullable|string',

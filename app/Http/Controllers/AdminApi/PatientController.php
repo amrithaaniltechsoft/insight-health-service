@@ -249,23 +249,24 @@ class PatientController extends Controller
     {
         $query = Patient::with(['customer', 'appointments.service']);
 
-        // ?assigned=1 -> only patients that have an appointment with a clinician
-        // assigned (appointments.staff_id). Opt-in so the Patient Profiles
-        // listing keeps showing every patient.
-        if ($request->boolean('assigned')) {
-            // Same user -> staff lookup as AuthController::login / ::me.
-            $user = $request->user();
-            $staff = $user
-                ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first()
-                : null;
+        $user = $request->user();
+        $staff = $user
+            ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first()
+            : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
 
-            // A clinician only sees the patients whose appointment is assigned
-            // to THEM; admin / reception see every patient with any clinician.
+        // A clinician only sees patients whose appointments are allotted to THEM.
+        if ($isClinician) {
             $query->whereHas('appointments', function ($q) use ($staff) {
-                $q->whereNotNull('staff_id');
-                if ($staff && $staff->role === 'clinician') {
+                if ($staff) {
                     $q->where('staff_id', $staff->id);
+                } else {
+                    $q->whereRaw('1 = 0');
                 }
+            });
+        } else if ($request->boolean('assigned')) {
+            $query->whereHas('appointments', function ($q) {
+                $q->whereNotNull('staff_id');
             });
         }
 
@@ -465,7 +466,16 @@ class PatientController extends Controller
             ];
         }
 
-        $appointments = ($patient->appointments ?? collect())->map(function($apt) {
+        $user = request()->user();
+        $staff = $user ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first() : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
+
+        $patientApts = $patient->appointments ?? collect();
+        if ($isClinician) {
+            $patientApts = $patientApts->where('staff_id', $staff ? $staff->id : 0);
+        }
+
+        $appointments = $patientApts->map(function($apt) {
             $serviceTitles = [];
             if (is_array($apt->service_ids) && count($apt->service_ids) > 0) {
                 $services = \App\Models\Service::whereIn('id', $apt->service_ids)->get();

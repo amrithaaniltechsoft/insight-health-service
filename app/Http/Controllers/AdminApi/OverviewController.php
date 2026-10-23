@@ -21,15 +21,29 @@ class OverviewController extends Controller
         $startOfWeek = Carbon::now()->startOfWeek();
         $startOfMonth = Carbon::now()->startOfMonth();
 
-        // 1. Appointment Counts
-        $todayAppointmentsCount = Appointment::whereDate('appointment_date', $today)->count();
-        $checkedInTodayCount = Appointment::whereDate('appointment_date', $today)
+        $user = $request->user();
+        $staff = $user ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first() : null;
+        $role = $staff ? $staff->role : ($user->role ?? 'super_admin');
+        $isClinician = ($role === 'clinician');
+
+        $baseAptQuery = Appointment::query();
+        if ($isClinician) {
+            if ($staff) {
+                $baseAptQuery->where('staff_id', $staff->id);
+            } else {
+                $baseAptQuery->whereRaw('1 = 0');
+            }
+        }
+
+        // 1. Appointment Counts (strictly isolated to clinician when applicable)
+        $todayAppointmentsCount = (clone $baseAptQuery)->whereDate('appointment_date', $today)->count();
+        $checkedInTodayCount = (clone $baseAptQuery)->whereDate('appointment_date', $today)
             ->where('status', 'Checked-In')
             ->count();
-        $completedTodayCount = Appointment::whereDate('appointment_date', $today)
+        $completedTodayCount = (clone $baseAptQuery)->whereDate('appointment_date', $today)
             ->where('status', 'Completed')
             ->count();
-        $pendingAppointmentsCount = Appointment::whereIn('status', ['Pending', 'Scheduled'])
+        $pendingAppointmentsCount = (clone $baseAptQuery)->whereIn('status', ['Pending', 'Scheduled'])
             ->whereDate('appointment_date', '>=', $today)
             ->count();
 
@@ -38,7 +52,13 @@ class OverviewController extends Controller
         $newPatientsThisWeek = Customer::where('created_at', '>=', $startOfWeek)->count();
 
         // 3. Clinical Notes
-        $pendingNotesCount = ClinicalNote::where('status', 'Draft')->count();
+        $notesQuery = ClinicalNote::where('status', 'Draft');
+        if ($isClinician && $staff) {
+            $notesQuery->whereHas('appointment', function ($q) use ($staff) {
+                $q->where('staff_id', $staff->id);
+            });
+        }
+        $pendingNotesCount = $notesQuery->count();
 
         // 4. Financial Totals
         $totalRevenue = Payment::where('status', 'Paid')->sum('amount_paid');
@@ -99,23 +119,38 @@ class OverviewController extends Controller
             ];
         };
 
-        // 5. Today's Appointments
-        $todayAppointments = Appointment::with(['patient', 'service', 'staff'])
+        // 5. Today's Appointments (strictly scoped for clinicians)
+        $todayQuery = Appointment::with(['patient', 'service', 'staff'])
             ->whereDate('appointment_date', $today)
-            ->orderBy('start_time', 'asc')
-            ->get()
-            ->map($mapAppointment);
+            ->orderBy('start_time', 'asc');
 
-        // 6. Recent Appointments (Fallback or activity log)
-        $recentAppointments = Appointment::with(['patient', 'service', 'staff'])
+        if ($isClinician) {
+            if ($staff) {
+                $todayQuery->where('staff_id', $staff->id);
+            } else {
+                $todayQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $todayAppointments = $todayQuery->get()->map($mapAppointment);
+
+        // 6. Recent Appointments (Fallback or activity log - scoped for clinicians)
+        $recentQuery = Appointment::with(['patient', 'service', 'staff'])
             ->orderBy('appointment_date', 'desc')
             ->orderBy('start_time', 'desc')
-            ->limit(10)
-            ->get()
-            ->map($mapAppointment);
+            ->limit(10);
+
+        if ($isClinician) {
+            if ($staff) {
+                $recentQuery->where('staff_id', $staff->id);
+            } else {
+                $recentQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $recentAppointments = $recentQuery->get()->map($mapAppointment);
 
         // 7. Recent Notifications (Role-scoped to avoid overload)
-        $user = $request->user();
         $notifQuery = AdminNotification::orderBy('created_at', 'desc');
         if ($user) {
             $staff = Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first();

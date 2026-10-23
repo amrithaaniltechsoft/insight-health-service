@@ -18,6 +18,23 @@ class AppointmentController extends Controller
     {
         $query = Appointment::with(['patient', 'service', 'staff', 'clinic']);
 
+        // Clinician authorization: a clinician can strictly ONLY see appointments allotted directly to them
+        $user = $request->user();
+        $staff = $user
+            ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first()
+            : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
+
+        if ($isClinician) {
+            if ($staff) {
+                $query->where('staff_id', $staff->id);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        } else if ($request->has('staff_id') && !empty($request->staff_id)) {
+            $query->where('staff_id', $request->staff_id);
+        }
+
         // Search query
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
@@ -51,10 +68,6 @@ class AppointmentController extends Controller
 
         if ($request->has('clinic_id') && !empty($request->clinic_id)) {
             $query->where('clinic_id', $request->clinic_id);
-        }
-
-        if ($request->has('staff_id') && !empty($request->staff_id)) {
-            $query->where('staff_id', $request->staff_id);
         }
 
         $perPage = intval($request->query('per_page', 15));
@@ -329,9 +342,31 @@ class AppointmentController extends Controller
 
     public function update(Request $request, $id)
     {
-        $appointment = Appointment::where('id', $id)
-            ->orWhere('appointment_code', $id)
-            ->firstOrFail();
+        $user = $request->user();
+        $staff = $user
+            ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first()
+            : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
+
+        $query = Appointment::where(function($q) use ($id) {
+            $q->where('id', $id)->orWhere('appointment_code', $id);
+        });
+
+        if ($isClinician) {
+            if ($staff) {
+                $query->where('staff_id', $staff->id);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        $appointment = $query->first();
+        if (!$appointment) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Appointment not found or not allotted to your clinician account.'
+            ], 403);
+        }
 
         // Capture previous state for delta detection
         $oldStatus = $appointment->status;
@@ -350,6 +385,10 @@ class AppointmentController extends Controller
             'notes' => 'nullable|string',
             'cancellation_reason' => 'nullable|string',
         ]);
+
+        if ($isClinician) {
+            unset($validated['staff_id']);
+        }
 
         $updateData = [];
 
@@ -467,8 +506,23 @@ class AppointmentController extends Controller
 
     public function calendar(Request $request)
     {
-        $appointments = Appointment::with(['patient', 'service', 'staff'])
-            ->get()
+        $user = $request->user();
+        $staff = $user
+            ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first()
+            : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
+
+        $query = Appointment::with(['patient', 'service', 'staff']);
+
+        if ($isClinician) {
+            if ($staff) {
+                $query->where('staff_id', $staff->id);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        $appointments = $query->get()
             ->map(function ($apt) {
                 return [
                     'id' => $apt->appointment_code,
