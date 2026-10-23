@@ -18,24 +18,47 @@ class PaymentController extends Controller
             $query->where('status', $request->status);
         }
 
-        $payments = $query->orderBy('created_at', 'desc')->get()->map(function($pay) {
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhereHas('patient', function($pq) use ($search) {
+                      $pq->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('patient_code', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $perPage = intval($request->query('per_page', 50));
+        if ($perPage <= 0 || $perPage > 200) $perPage = 50;
+
+        $paginated = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+        $payments = collect($paginated->items())->map(function($pay) {
             return [
                 'id' => $pay->invoice_number,
                 'rawId' => $pay->id,
-                'patientName' => $pay->patient ? ($pay->patient->first_name . ' ' . $pay->patient->last_name) : 'Patient',
+                'patientName' => $pay->patient ? trim($pay->patient->first_name . ' ' . $pay->patient->last_name) : 'Patient',
                 'patientId' => $pay->patient ? $pay->patient->patient_code : '',
                 'amount' => (float) $pay->total_amount,
                 'paid' => (float) $pay->amount_paid,
                 'method' => $pay->payment_method,
                 'status' => $pay->status,
                 'date' => $pay->created_at ? $pay->created_at->format('Y-m-d') : '',
-                'service' => ($pay->appointment && $pay->appointment->service) ? $pay->appointment->service->title : 'Health Service',
+                'service' => ($pay->appointment && $pay->appointment->service) ? ($pay->appointment->service->title ?? $pay->appointment->service->service_name) : 'Health Service',
             ];
         });
 
         return response()->json([
             'status' => 'success',
-            'data' => $payments
+            'data' => $payments,
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ]
         ]);
     }
 

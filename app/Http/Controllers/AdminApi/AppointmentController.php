@@ -16,7 +16,7 @@ class AppointmentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Appointment::with(['patient', 'service', 'staff', 'clinic']);
+        $query = Appointment::with(['patient.customer', 'service', 'staff', 'clinic']);
 
         // Clinician authorization: a clinician can strictly ONLY see appointments allotted directly to them
         $user = $request->user();
@@ -69,15 +69,15 @@ class AppointmentController extends Controller
         }
 
         if ($request->has('date') && !empty($request->date)) {
-            $query->whereDate('appointment_date', $request->date);
+            $query->where('appointment_date', $request->date);
         }
 
         if ($request->has('date_from') && !empty($request->date_from)) {
-            $query->whereDate('appointment_date', '>=', $request->date_from);
+            $query->where('appointment_date', '>=', $request->date_from);
         }
 
         if ($request->has('date_to') && !empty($request->date_to)) {
-            $query->whereDate('appointment_date', '<=', $request->date_to);
+            $query->where('appointment_date', '<=', $request->date_to);
         }
 
         if ($request->has('clinic_id') && !empty($request->clinic_id)) {
@@ -91,7 +91,32 @@ class AppointmentController extends Controller
             ->orderBy('start_time', 'asc')
             ->paginate($perPage);
 
-        $appointments = collect($paginated->items())->map(function ($apt) {
+        $items = collect($paginated->items());
+
+        // Batch pre-fetch all multi-service IDs in a single query (eliminates N+1 Service::whereIn)
+        $allServiceIds = $items->pluck('service_ids')
+            ->filter()
+            ->flatten()
+            ->unique()
+            ->filter()
+            ->values();
+
+        $servicesMap = $allServiceIds->isNotEmpty()
+            ? Service::whereIn('id', $allServiceIds)->get()->keyBy('id')
+            : collect();
+
+        // Batch pre-fetch fallback customers in a single query (eliminates N+1 Customer::find)
+        $fallbackCustomerIds = $items->whereNull('patient')
+            ->pluck('patient_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $customersMap = $fallbackCustomerIds->isNotEmpty()
+            ? Customer::whereIn('id', $fallbackCustomerIds)->get()->keyBy('id')
+            : collect();
+
+        $appointments = $items->map(function ($apt) use ($servicesMap, $customersMap) {
             $patientName = 'N/A';
             $patientIdStr = '';
             $patientEmail = '';
@@ -110,7 +135,7 @@ class AppointmentController extends Controller
                 $patientEmail = $p->email ?? ($p->customer ? $p->customer->email : '');
                 $patientPhone = $p->phone ?? ($p->customer ? $p->customer->phone : '');
             } else if ($apt->patient_id) {
-                $c = Customer::find($apt->patient_id);
+                $c = $customersMap->get($apt->patient_id);
                 if ($c) {
                     $name = trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? ''));
                     if (empty($name) && !empty($c->name)) $name = $c->name;
@@ -123,8 +148,12 @@ class AppointmentController extends Controller
 
             $serviceTitles = [];
             if (is_array($apt->service_ids) && count($apt->service_ids) > 0) {
-                $services = Service::whereIn('id', $apt->service_ids)->get();
-                $serviceTitles = $services->map(fn($s) => $s->title ?? $s->service_name)->toArray();
+                $serviceTitles = collect($apt->service_ids)
+                    ->map(fn($id) => $servicesMap->get($id))
+                    ->filter()
+                    ->map(fn($s) => $s->title ?? $s->service_name)
+                    ->values()
+                    ->toArray();
             }
             if (count($serviceTitles) === 0 && $apt->service) {
                 $serviceTitles[] = $apt->service->title ?? $apt->service->service_name;
@@ -172,7 +201,7 @@ class AppointmentController extends Controller
             return response()->json(['status' => 'success', 'bookedSlots' => []]);
         }
 
-        $query = Appointment::whereDate('appointment_date', $date)
+        $query = Appointment::where('appointment_date', $date)
             ->where('status', '!=', 'Cancelled');
 
         if ($staffIdParam) {
