@@ -37,15 +37,29 @@ class AppointmentController extends Controller
 
         // Search query
         if ($request->has('search') && !empty($request->search)) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
+            // Collapse repeated spaces so "Amritha   Anil" still matches the full name.
+            $search = trim(preg_replace('/\s+/', ' ', $request->search));
+            $query->where(function ($q) use ($search) {
                 $q->where('appointment_code', 'like', "%{$search}%")
-                  ->orWhereHas('patient', function($pq) use ($search) {
+                  ->orWhereHas('patient', function ($pq) use ($search) {
                       $pq->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
+                        // Match a full name typed as "First Last" (or "Last First").
+                        ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) LIKE ?", ["%{$search}%"])
+                        ->orWhereRaw("CONCAT_WS(' ', last_name, first_name) LIKE ?", ["%{$search}%"])
                         ->orWhere('email', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
                         ->orWhere('patient_code', 'like', "%{$search}%");
+                  })
+                  // Some bookings store the customer id instead of a patient id.
+                  ->orWhereHas('customer', function ($cq) use ($search) {
+                      $cq->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) LIKE ?", ["%{$search}%"])
+                        ->orWhereRaw("CONCAT_WS(' ', last_name, first_name) LIKE ?", ["%{$search}%"])
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('customer_code', 'like', "%{$search}%");
                   });
             });
         }
@@ -500,6 +514,54 @@ class AppointmentController extends Controller
             'status' => 'success',
             'message' => 'Appointment updated successfully',
             'data' => $freshApt
+        ]);
+    }
+
+
+    /**
+     * Delete an appointment. Only cancelled appointments can be removed, so a
+     * live booking can never be erased by accident.
+     */
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user();
+        $staff = $user
+            ? Staff::where('user_id', $user->id)->orWhere('email', $user->email)->first()
+            : null;
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && $user->role === 'clinician');
+
+        $query = Appointment::where(function ($q) use ($id) {
+            $q->where('id', $id)->orWhere('appointment_code', $id);
+        });
+
+        if ($isClinician) {
+            if ($staff) {
+                $query->where('staff_id', $staff->id);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        $appointment = $query->first();
+        if (!$appointment) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Appointment not found.',
+            ], 404);
+        }
+
+        if ($appointment->status !== 'Cancelled') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Only cancelled appointments can be deleted.',
+            ], 422);
+        }
+
+        $appointment->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Appointment deleted successfully',
         ]);
     }
 

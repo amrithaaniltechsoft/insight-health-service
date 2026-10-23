@@ -29,6 +29,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/appointments', [AdminApi\AppointmentController::class, 'index']);
     Route::post('/appointments', [AdminApi\AppointmentController::class, 'store']);
     Route::put('/appointments/{id}', [AdminApi\AppointmentController::class, 'update']);
+    Route::delete('/appointments/{id}', [AdminApi\AppointmentController::class, 'destroy']);
     Route::get('/appointments/calendar', [AdminApi\AppointmentController::class, 'calendar']);
 
     // Patients & Customers Directory
@@ -84,6 +85,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/services', [AdminApi\ServiceController::class, 'index']);
     Route::post('/services', [AdminApi\ServiceController::class, 'store']);
     Route::put('/services/{id}', [AdminApi\ServiceController::class, 'update']);
+    Route::get('/categories', [AdminApi\ServiceController::class, 'categories']);
 
     // Schedules
     Route::get('/schedules', [AdminApi\ScheduleController::class, 'index']);

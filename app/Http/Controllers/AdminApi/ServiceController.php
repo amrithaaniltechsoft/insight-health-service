@@ -39,6 +39,29 @@ class ServiceController extends Controller
         ]);
     }
 
+    /**
+     * Every category row from the `categories` table, in display order.
+     * Used by admin filters so the list always mirrors the catalogue.
+     */
+    public function categories()
+    {
+        $categories = Category::query()
+            ->orderByRaw('sort_order IS NULL, sort_order ASC')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug']);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $categories->map(function ($c) {
+                return [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'slug' => $c->slug,
+                ];
+            })->values(),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
