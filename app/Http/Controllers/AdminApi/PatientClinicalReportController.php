@@ -62,7 +62,7 @@ class PatientClinicalReportController extends Controller
      * performed) plus the services that already have a report, so those can be
      * hidden and duplicates avoided.
      */
-    public function reportOptions($patientId)
+    public function reportOptions(Request $request, $patientId)
     {
         $rawId = intval(preg_replace('/[^0-9]/', '', $patientId));
 
@@ -72,10 +72,28 @@ class PatientClinicalReportController extends Controller
             ->orWhere('patient_code', $patientId)
             ->firstOrFail();
 
+        // Determine if the current user is a clinician and restrict to their assigned services.
+        $user = $request->user();
+        $staff = null;
+        if ($user) {
+            $staff = \App\Models\Staff::where('user_id', $user->id)
+                ->orWhere('email', $user->email)
+                ->first();
+        }
+        $isClinician = ($staff && $staff->role === 'clinician') || ($user && isset($user->role) && $user->role === 'clinician');
+        $clinicianStaffId = $staff ? $staff->id : null;
+
         // Every service id referenced by the patient's appointments. Bookings
         // may carry a single `service_id` and/or a `service_ids` array.
         $serviceIds = [];
         foreach ($patient->appointments as $apt) {
+            // If the current user is a clinician, only include services from appointments assigned to them.
+            if ($isClinician && $clinicianStaffId) {
+                if ((int) $apt->staff_id !== (int) $clinicianStaffId) {
+                    continue;
+                }
+            }
+
             if (is_array($apt->service_ids)) {
                 foreach ($apt->service_ids as $sid) {
                     $sid = intval($sid);
