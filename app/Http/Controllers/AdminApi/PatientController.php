@@ -79,12 +79,15 @@ class PatientController extends Controller
     public function search(Request $request)
     {
         $q = trim($request->query('q', $request->query('search', '')));
+        $q = preg_replace('/\s+/', ' ', $q);
 
         if (empty($q)) {
             $patients = Patient::limit(15)->get();
         } else {
             $patients = Patient::where('first_name', 'like', "%{$q}%")
                 ->orWhere('last_name', 'like', "%{$q}%")
+                ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) LIKE ?", ["%{$q}%"])
+                ->orWhereRaw("CONCAT_WS(' ', last_name, first_name) LIKE ?", ["%{$q}%"])
                 ->orWhere('patient_code', 'like', "%{$q}%")
                 ->orWhere('email', 'like', "%{$q}%")
                 ->orWhere('phone', 'like', "%{$q}%")
@@ -96,6 +99,8 @@ class PatientController extends Controller
         if ($patients->isEmpty() && !empty($q)) {
             $customers = Customer::where('first_name', 'like', "%{$q}%")
                 ->orWhere('last_name', 'like', "%{$q}%")
+                ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) LIKE ?", ["%{$q}%"])
+                ->orWhereRaw("CONCAT_WS(' ', last_name, first_name) LIKE ?", ["%{$q}%"])
                 ->orWhere('customer_code', 'like', "%{$q}%")
                 ->orWhere('email', 'like', "%{$q}%")
                 ->orWhere('phone', 'like', "%{$q}%")
@@ -271,10 +276,12 @@ class PatientController extends Controller
         }
 
         if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $search = trim(preg_replace('/\s+/', ' ', $request->search));
+            $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
                   ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) LIKE ?", ["%{$search}%"])
+                  ->orWhereRaw("CONCAT_WS(' ', last_name, first_name) LIKE ?", ["%{$search}%"])
                   ->orWhere('patient_code', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
@@ -345,10 +352,12 @@ class PatientController extends Controller
         $query = Customer::with(['patients']);
 
         if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $search = trim(preg_replace('/\s+/', ' ', $request->search));
+            $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
                   ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhereRaw("CONCAT_WS(' ', first_name, last_name) LIKE ?", ["%{$search}%"])
+                  ->orWhereRaw("CONCAT_WS(' ', last_name, first_name) LIKE ?", ["%{$search}%"])
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('customer_code', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
