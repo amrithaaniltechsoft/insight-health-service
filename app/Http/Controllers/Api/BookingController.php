@@ -7,6 +7,8 @@ use App\Models\Appointment;
 use App\Models\Customer;
 use App\Models\Patient;
 use App\Models\Payment;
+use App\Models\PaymentTransaction;
+use App\Models\Service;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -920,9 +922,34 @@ class BookingController extends Controller
                 \Log::warning("Notification dispatch failed on online booking: " . $e->getMessage());
             }
 
-            // Holding the slot does not take a payment, so there is nothing to
-            // write to `payments` yet.
+            // Holding the slot: record an unpaid ledger entry for this appointment
             if (!$recordPayment) {
+                $serviceIds = $appointment->service_ids ?: ($appointment->service_id ? [$appointment->service_id] : []);
+                $totalPrice = 0.0;
+                if (!empty($serviceIds)) {
+                    $totalPrice = (float) Service::whereIn('id', $serviceIds)->sum('price');
+                }
+                if ($totalPrice <= 0 && $appointment->service) {
+                    $totalPrice = (float) $appointment->service->price;
+                }
+                if ($totalPrice <= 0) {
+                    $totalPrice = 80.00;
+                }
+
+                $candidate = 'INV-' . strtoupper(bin2hex(random_bytes(4)));
+                Payment::create([
+                    'invoice_number' => $candidate,
+                    'appointment_id' => $appointment->id,
+                    'patient_id'     => $patient->id,
+                    'subtotal'       => $totalPrice,
+                    'tax'            => 0.00,
+                    'discount'       => 0.00,
+                    'total_amount'   => $totalPrice,
+                    'amount_paid'    => 0.00,
+                    'payment_method' => 'Unpaid',
+                    'status'         => 'Pending',
+                ]);
+
                 return response()->json([
                     'message' => 'Appointment held successfully.',
                     'appointment' => $this->presentAppointment($appointment),
@@ -961,42 +988,81 @@ class BookingController extends Controller
         string $paymentMethod,
         $transactionRef
     ): Payment {
-        $invoiceNumber = null;
-        for ($attempt = 0; $attempt < 3; $attempt++) {
-            $candidate = 'INV-' . strtoupper(bin2hex(random_bytes(4)));
-            if (!Payment::where('invoice_number', $candidate)->exists()) {
-                $invoiceNumber = $candidate;
-                break;
-            }
-        }
-        if ($invoiceNumber === null) {
-            $invoiceNumber = 'INV-' . strtoupper(uniqid('', true));
-        }
-
         $amount = $this->nullableString($amount, 255);
         $numericAmount = $amount !== null && is_numeric(str_replace([',', '£', '$'], '', $amount))
             ? (float) preg_replace('/[^0-9.]/', '', $amount)
             : 0.00;
 
-        $payment = new Payment([
-            'invoice_number' => $invoiceNumber,
-            'appointment_id' => $appointment->id,
-            'patient_id'     => $patient->id,
-            'subtotal'       => $numericAmount,
-            'tax'            => 0.00,
-            'discount'       => 0.00,
-            'total_amount'   => $numericAmount,
-            'amount_paid'    => $numericAmount,
-            'payment_method' => $paymentMethod,
-            'status'         => 'Paid',
-            'transaction_ref'=> $this->nullableString($transactionRef, 255),
-        ]);
-        $payment->save();
+        $serviceIds = $appointment->service_ids ?: ($appointment->service_id ? [$appointment->service_id] : []);
+        $totalPrice = 0.0;
+        if (!empty($serviceIds)) {
+            $totalPrice = (float) Service::whereIn('id', $serviceIds)->sum('price');
+        }
+        if ($totalPrice <= 0 && $appointment->service) {
+            $totalPrice = (float) $appointment->service->price;
+        }
+        if ($totalPrice <= 0) {
+            $totalPrice = $numericAmount > 0 ? $numericAmount : 80.00;
+        }
 
-        // A payment row exists, so the appointment is no longer outstanding.
-        // Skipped when the appointment was already inserted as Paid.
-        if ($appointment->payment_status !== 'Paid') {
-            $appointment->update(['payment_status' => 'Paid']);
+        $status = ($numericAmount >= $totalPrice && $totalPrice > 0)
+            ? 'Paid'
+            : ($numericAmount > 0 ? 'Partial' : 'Pending');
+
+        $existingPayment = Payment::where('appointment_id', $appointment->id)->first();
+        if ($existingPayment) {
+            $existingPayment->update([
+                'amount_paid' => $numericAmount,
+                'total_amount' => max($existingPayment->total_amount, $totalPrice),
+                'subtotal' => max($existingPayment->subtotal, $totalPrice),
+                'payment_method' => $paymentMethod ?: $existingPayment->payment_method,
+                'status' => $status,
+                'transaction_ref' => $this->nullableString($transactionRef, 255) ?: $existingPayment->transaction_ref,
+            ]);
+            $payment = $existingPayment;
+        } else {
+            $invoiceNumber = null;
+            for ($attempt = 0; $attempt < 3; $attempt++) {
+                $candidate = 'INV-' . strtoupper(bin2hex(random_bytes(4)));
+                if (!Payment::where('invoice_number', $candidate)->exists()) {
+                    $invoiceNumber = $candidate;
+                    break;
+                }
+            }
+            if ($invoiceNumber === null) {
+                $invoiceNumber = 'INV-' . strtoupper(uniqid('', true));
+            }
+
+            $payment = new Payment([
+                'invoice_number' => $invoiceNumber,
+                'appointment_id' => $appointment->id,
+                'patient_id'     => $patient->id,
+                'subtotal'       => $totalPrice,
+                'tax'            => 0.00,
+                'discount'       => 0.00,
+                'total_amount'   => $totalPrice,
+                'amount_paid'    => $numericAmount,
+                'payment_method' => $paymentMethod,
+                'status'         => $status,
+                'transaction_ref'=> $this->nullableString($transactionRef, 255),
+            ]);
+            $payment->save();
+        }
+
+        if ($numericAmount > 0) {
+            PaymentTransaction::create([
+                'payment_id' => $payment->id,
+                'amount' => $numericAmount,
+                'payment_method' => $paymentMethod ?: 'Card',
+                'transaction_type' => ($status === 'Partial') ? 'Advance Deposit' : 'Full Payment',
+                'transaction_ref' => $this->nullableString($transactionRef, 255) ?: ('TXN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)))),
+                'notes' => ($status === 'Partial') ? 'Advance payment made via online booking' : 'Full payment made via online booking',
+                'paid_at' => now(),
+            ]);
+        }
+
+        if ($appointment->payment_status !== $status) {
+            $appointment->update(['payment_status' => $status]);
         }
 
         return $payment;

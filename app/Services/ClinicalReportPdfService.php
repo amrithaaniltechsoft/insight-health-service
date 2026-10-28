@@ -40,14 +40,15 @@ class ClinicalReportPdfService
     }
 
     /**
-     * Builds the PDF bytes for a report. The Early Pregnancy template is the
-     * only layout wired up so far.
+     * Builds the PDF bytes for a report. Selects the appropriate Blade template
+     * while sharing the exact same header letterhead and gold footer band.
      */
     public function build(PatientClinicalReport $report): string
     {
         $report->loadMissing('patient');
 
-        $html = view('reports.early-pregnancy', ['v' => $this->values($report)])->render();
+        $viewName = $this->resolveView($report);
+        $html = view($viewName, ['v' => $this->values($report)])->render();
 
         $options = new Options();
         $options->set('isRemoteEnabled', true);
@@ -59,6 +60,24 @@ class ClinicalReportPdfService
         $dompdf->render();
 
         return (string) $dompdf->output();
+    }
+
+    /**
+     * Resolves which template to use based on report_type or display_title.
+     */
+    private function resolveView(PatientClinicalReport $report): string
+    {
+        $haystack = strtolower(($report->report_type ?? '') . ' ' . ($report->display_title ?? ''));
+
+        if (str_contains($haystack, '3d') || str_contains($haystack, '4d')) {
+            return 'reports.3d-4d-scan';
+        }
+
+        if (str_contains($haystack, 'early pregnancy')) {
+            return 'reports.early-pregnancy';
+        }
+
+        return view()->exists('reports.3d-4d-scan') ? 'reports.3d-4d-scan' : 'reports.early-pregnancy';
     }
 
     /** Generates the PDF and writes it to storage, returning the relative path. */
@@ -85,7 +104,8 @@ class ClinicalReportPdfService
             : '';
 
         $fetalNumber = $this->text($data['fetalNumber'] ?? '');
-        $isMultiple = strtolower($fetalNumber) === 'multiple';
+        $multipleVal = $this->text($data['multiple'] ?? '');
+        $isMultiple = strtolower($fetalNumber) === 'multiple' || strtolower($multipleVal) === 'yes';
 
         return [
             'title'             => trim(preg_replace('/\s*\(PDF\)\s*$/i', '', (string) $report->display_title)),
@@ -93,25 +113,32 @@ class ClinicalReportPdfService
             'dob'               => $this->date($patient?->dob),
             'patient_id'        => $patient?->patient_code ?: 'IHSUS',
             'study_date'        => $this->date($data['studyDate'] ?? $report->created_at),
-            'contact_no'        => $this->text($data['contactNo'] ?? ''),
+            'contact_no'        => $this->text($data['contactNo'] ?? ($patient?->phone ?? '')),
             'consent'           => $this->text($data['consentToScan'] ?? '') ?: 'Yes',
             'clinical_indication' => $this->text($data['clinicalIndication'] ?? ''),
             'scan_method'       => $this->text($data['scanMethod'] ?? '') ?: 'Transabdominal',
             'fetal_heart'       => $this->text($data['fetalHeart'] ?? '') ?: 'Present',
-            'placenta'          => $this->text($data['placenta'] ?? ''),
-            'singleton'         => $isMultiple ? 'No' : 'Yes',
-            'multiple'          => $isMultiple ? $fetalNumber : '',
-            'placental_position' => $this->text($data['placentalPosition'] ?? ''),
+            'placenta'          => $this->text($data['placenta'] ?? '') ?: 'Anterior',
+            'singleton'         => $isMultiple ? 'No' : ($this->text($data['singleton'] ?? '') ?: 'Yes'),
+            'multiple'          => $isMultiple ? ($multipleVal ?: 'Yes') : 'No',
+            'placental_position' => $this->text($data['placentalPosition'] ?? '') ?: 'Clear of Os',
             'gestation_weeks'   => $this->text($data['gestationWeeks'] ?? ''),
             'gestation_days'    => $this->text($data['gestationDays'] ?? ''),
             'edd'               => $this->date($data['edd'] ?? ''),
-            'comments'          => $this->text($data['comments'] ?? ''),
+            'hc'                => $this->text($data['hc'] ?? ''),
+            'ac'                => $this->text($data['ac'] ?? ''),
+            'fl'                => $this->text($data['fl'] ?? ''),
+            'fetal_presentation'=> $this->text($data['fetalPresentation'] ?? '') ?: 'Cephalic',
+            'fetal_movements'   => $this->text($data['fetalMovements'] ?? '') ?: 'Visualised',
+            'amniotic_fluid_mpd'=> $this->text($data['amnioticFluidMpd'] ?? ''),
+            'edf'               => $this->text($data['edf'] ?? '') ?: 'Present',
+            'efw_oz_lb'         => $this->text($data['efwOzLb'] ?? ''),
+            'efw_grams'         => $this->text($data['efwGrams'] ?? ''),
+            'comments'          => $this->text($data['reportSummary'] ?? ($data['comments'] ?? 'Advised to follow NHS antenatal care pathway.')),
             'sonographer'       => $this->text($data['sonographer'] ?? ''),
             'chaperone'         => $this->text($data['chaperone'] ?? ''),
-            'status'            => (string) ($report->status ?? ''),
+            'status'            => (string) ($report->status ?? 'Finalized'),
             'logoSrc'           => $this->imageDataUri('reports/letterhead.jpg'),
-            // Gold footer band artwork (text stripped) used as the CSS background
-            // so the contact details can stay as real, resizable text.
             'footerBg'          => $this->imageDataUri('reports/footer-band-clean.jpg'),
         ];
     }

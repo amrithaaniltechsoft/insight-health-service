@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\Customer;
 use App\Models\Patient;
+use App\Models\Payment;
+use App\Models\PaymentTransaction;
 use App\Models\Service;
 use App\Models\Staff;
 use App\Services\NotificationService;
@@ -355,6 +357,58 @@ class AppointmentController extends Controller
 
         $code = Appointment::generateNextAppointmentCode();
 
+        // Calculate appointment service total price
+        $totalPrice = 0.0;
+        if (!empty($serviceIds)) {
+            $services = Service::whereIn('id', $serviceIds)->get();
+            $totalPrice = (float) $services->sum('price');
+        }
+        if ($totalPrice <= 0 && $service) {
+            $totalPrice = (float) $service->price;
+        }
+        if ($totalPrice <= 0 && !empty($request->input('total_amount'))) {
+            $totalPrice = (float) $request->input('total_amount');
+        }
+        if ($totalPrice <= 0) {
+            $totalPrice = 80.00;
+        }
+
+        // Determine payment option and amounts
+        $paymentOption = $request->input('payment_option', 'pay_at_clinic');
+        $paymentMethod = $request->input('payment_method', 'Card');
+        $amountPaid = 0.0;
+        $paymentStatus = 'Pending';
+
+        if ($paymentOption === 'full') {
+            $amountPaid = (float) $request->input('amount_paid', $totalPrice);
+            if ($amountPaid <= 0) $amountPaid = $totalPrice;
+            $paymentStatus = 'Paid';
+        } elseif ($paymentOption === 'deposit') {
+            $amountPaid = (float) $request->input('amount_paid', round($totalPrice * 0.5, 2));
+            if ($amountPaid <= 0) $amountPaid = round($totalPrice * 0.5, 2);
+            $paymentStatus = 'Partial';
+        } elseif ($paymentOption === 'custom') {
+            $amountPaid = (float) $request->input('amount_paid', 0);
+            if ($amountPaid >= $totalPrice && $totalPrice > 0) {
+                $paymentStatus = 'Paid';
+            } elseif ($amountPaid > 0) {
+                $paymentStatus = 'Partial';
+            } else {
+                $paymentStatus = 'Pending';
+            }
+        } else {
+            // pay_at_clinic or no immediate payment
+            $amountPaid = (float) $request->input('amount_paid', 0);
+            if ($amountPaid >= $totalPrice && $totalPrice > 0) {
+                $paymentStatus = 'Paid';
+            } elseif ($amountPaid > 0) {
+                $paymentStatus = 'Partial';
+            } else {
+                $amountPaid = 0.0;
+                $paymentStatus = 'Pending';
+            }
+        }
+
         $appointment = Appointment::create([
             'appointment_code' => $code,
             'patient_id' => $patient->id,
@@ -365,9 +419,42 @@ class AppointmentController extends Controller
             'appointment_date' => $validated['appointment_date'],
             'start_time' => $startTimeFormatted,
             'status' => 'Scheduled',
-            'payment_status' => 'Pending',
+            'payment_status' => $paymentStatus,
             'notes' => $notesText,
         ]);
+
+        // Record payment in financial ledger
+        $invoiceNum = 'INV-' . date('Y') . '-' . rand(1000, 9999);
+        $payment = Payment::create([
+            'invoice_number' => $invoiceNum,
+            'appointment_id' => $appointment->id,
+            'patient_id' => $patient->id,
+            'subtotal' => $totalPrice,
+            'tax' => 0.00,
+            'discount' => 0.00,
+            'total_amount' => $totalPrice,
+            'amount_paid' => $amountPaid,
+            'payment_method' => $paymentMethod,
+            'status' => $paymentStatus,
+            'transaction_ref' => $request->input('transaction_ref'),
+        ]);
+
+        if ($amountPaid > 0) {
+            $txnType = ($paymentOption === 'deposit' || $paymentStatus === 'Partial') ? 'Advance Deposit' : 'Full Payment';
+            $txnNotes = ($paymentOption === 'deposit' || $paymentStatus === 'Partial')
+                ? 'Advance payment recorded at booking'
+                : 'Full payment recorded at booking';
+
+            PaymentTransaction::create([
+                'payment_id' => $payment->id,
+                'amount' => $amountPaid,
+                'payment_method' => $paymentMethod,
+                'transaction_type' => $txnType,
+                'transaction_ref' => $request->input('transaction_ref') ?: ('TXN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)))),
+                'notes' => $txnNotes,
+                'paid_at' => now(),
+            ]);
+        }
 
         $actorId = $request->user() ? $request->user()->id : null;
         try {

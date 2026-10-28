@@ -209,16 +209,12 @@ class PatientClinicalReportController extends Controller
 
 
         // Store the raw form field values in `report_values` as JSON.
-        // Only the Early Pregnancy form is captured for now; other templates
-        // can be added here later.
-        if ($this->isEarlyPregnancyReport($report)) {
-            ReportValue::create([
-                'clinical_report_id' => $report->id,
-                'patient_id' => $patient->id,
-                'report_type' => $report->report_type,
-                'values' => $report->report_data ?? [],
-            ]);
-        }
+        ReportValue::create([
+            'clinical_report_id' => $report->id,
+            'patient_id' => $patient->id,
+            'report_type' => $report->report_type,
+            'values' => $report->report_data ?? [],
+        ]);
 
         return response()->json([
             'status' => 'success',
@@ -237,6 +233,25 @@ class PatientClinicalReportController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $report
+        ]);
+    }
+
+    public function pdf($patientId, $reportId, ClinicalReportPdfService $pdfService)
+    {
+        $report = PatientClinicalReport::with('patient')
+            ->where('id', $reportId)
+            ->orWhere('report_code', $reportId)
+            ->firstOrFail();
+
+        $path = $pdfService->path($report);
+        if (!$path || !file_exists($path)) {
+            $relative = $pdfService->generate($report);
+            $path = Storage::disk('public')->path($relative);
+        }
+
+        return response()->file($path, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $report->report_code . '.pdf"',
         ]);
     }
 

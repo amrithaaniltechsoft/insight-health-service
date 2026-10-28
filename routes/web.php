@@ -29,6 +29,25 @@ Route::get('/dashboard', function () {
 use App\Http\Controllers\InvoiceController;
 Route::get('/invoices/{id}/pdf', [InvoiceController::class, 'preview'])->name('invoice.pdf');
 
+// Direct Storage file serving (ensures reports, scans, and vault files always resolve cleanly)
+Route::get('/storage/{path}', function (string $path) {
+    $filePath = storage_path('app/public/' . $path);
+    if (!file_exists($filePath) || is_dir($filePath)) {
+        abort(404);
+    }
+
+    $mime = str_ends_with(strtolower($filePath), '.pdf')
+        ? 'application/pdf'
+        : (mime_content_type($filePath) ?: 'application/octet-stream');
+
+    return response()->file($filePath, [
+        'Content-Type' => $mime,
+        'Content-Disposition' => 'inline; filename="' . basename($filePath) . '"',
+        'Cache-Control' => 'public, max-age=3600',
+    ]);
+})->where('path', '.*');
+
+
 // Blog routes (public)
 Route::get('/blogs', [BlogController::class, 'index'])->name('blogs.index');
 Route::get('/blogs/{id}', [BlogController::class, 'show'])->name('blogs.show');

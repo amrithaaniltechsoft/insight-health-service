@@ -32,4 +32,9 @@ class Payment extends Model
     {
         return $this->belongsTo(Patient::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(PaymentTransaction::class)->orderBy('created_at', 'asc');
+    }
 }

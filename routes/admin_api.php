@@ -51,6 +51,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/patients/{patientId}/clinical-reports', [AdminApi\PatientClinicalReportController::class, 'index']);
     Route::post('/patients/{patientId}/clinical-reports', [AdminApi\PatientClinicalReportController::class, 'store']);
     Route::get('/patients/{patientId}/clinical-reports/{reportId}', [AdminApi\PatientClinicalReportController::class, 'show']);
+    Route::get('/patients/{patientId}/clinical-reports/{reportId}/pdf', [AdminApi\PatientClinicalReportController::class, 'pdf']);
     Route::delete('/patients/{patientId}/clinical-reports/{reportId}', [AdminApi\PatientClinicalReportController::class, 'destroy']);
     // Report-type picker options: the patient's booked services minus the ones
     // that already have a report.
@@ -80,6 +81,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Payment Ledgers
     Route::get('/payments', [AdminApi\PaymentController::class, 'index']);
     Route::post('/payments', [AdminApi\PaymentController::class, 'store']);
+    Route::post('/payments/{id}/refund', [AdminApi\PaymentController::class, 'refund']);
 
     // Clinic Services Catalog
     Route::get('/services', [AdminApi\ServiceController::class, 'index']);
