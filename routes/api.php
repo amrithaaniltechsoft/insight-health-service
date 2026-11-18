@@ -38,6 +38,7 @@ Route::get('/cms/{id}', [App\Http\Controllers\Admin\CmsController::class, 'getPu
 Route::get('/reviews', [App\Http\Controllers\ReviewApiController::class, 'index']);
 Route::post('/enquiries', [App\Http\Controllers\EnquiryApiController::class, 'store']);
 Route::get('/seos/{page}', [App\Http\Controllers\Admin\SeoController::class, 'getPublicSeoByPage']);
+Route::get('/page-seos/{pageName}', [App\Http\Controllers\Admin\PageSeoController::class, 'getPublicPageSeo']);
 
 // "My People" — the family and friends a customer books for.
 // These live on this server because the deployed frontend cannot reach MySQL

@@ -347,6 +347,11 @@ return [
             'url' => 'admin/seos',
             'icon' => 'fas fa-fw fa-search',
         ],
+        [
+            'text' => 'Page SEO',
+            'url' => 'admin/page-seos',
+            'icon' => 'fas fa-fw fa-globe',
+        ],
 
         ['header' => 'account_settings'],
         [

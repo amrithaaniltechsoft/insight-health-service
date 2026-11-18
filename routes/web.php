@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\CmsController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\SeoController;
+use App\Http\Controllers\Admin\PageSeoController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\ShopController;
 use Illuminate\Support\Facades\Route;
@@ -125,6 +126,17 @@ Route::middleware('auth')->prefix('admin/seos')->group(function () {
     Route::post('/', [SeoController::class, 'store'])->name('seos.admin.store');
     Route::put('/{id}', [SeoController::class, 'update'])->name('seos.admin.update');
     Route::delete('/{id}', [SeoController::class, 'destroy'])->name('seos.admin.destroy');
+});
+
+// Page SEO Admin Routes (New Module)
+Route::middleware('auth')->prefix('admin/page-seos')->group(function () {
+    Route::get('/', [PageSeoController::class, 'adminIndex'])->name('page_seos.admin.index');
+    Route::get('/create', [PageSeoController::class, 'create'])->name('page_seos.admin.create');
+    Route::post('/', [PageSeoController::class, 'store'])->name('page_seos.admin.store');
+    Route::get('/{id}/edit', [PageSeoController::class, 'edit'])->name('page_seos.admin.edit');
+    Route::get('/{id}/show', [PageSeoController::class, 'show'])->name('page_seos.admin.show');
+    Route::put('/{id}', [PageSeoController::class, 'update'])->name('page_seos.admin.update');
+    Route::delete('/{id}', [PageSeoController::class, 'destroy'])->name('page_seos.admin.destroy');
 });
 
 // Shop Admin Routes (protected)
