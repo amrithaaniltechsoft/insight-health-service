@@ -108,16 +108,24 @@ class BlogController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->has('sub_category_id') && empty($request->sub_category_id)) {
+            $request->merge(['sub_category_id' => null]);
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
             'sub_category_id' => 'nullable|exists:sub_categories,id',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string',
             'meta_keywords' => 'nullable|string',
         ]);
+
+        if (empty($validated['sub_category_id'])) {
+            $validated['sub_category_id'] = null;
+        }
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('blogs', 'public');
@@ -145,16 +153,24 @@ class BlogController extends Controller
     {
         $blog = Blog::findOrFail($id);
 
+        if ($request->has('sub_category_id') && empty($request->sub_category_id)) {
+            $request->merge(['sub_category_id' => null]);
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
             'sub_category_id' => 'nullable|exists:sub_categories,id',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string',
             'meta_keywords' => 'nullable|string',
         ]);
+
+        if (empty($validated['sub_category_id'])) {
+            $validated['sub_category_id'] = null;
+        }
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('blogs', 'public');
@@ -186,10 +202,10 @@ class BlogController extends Controller
 
     private function generateSlug($title)
     {
-        $slug = strtolower(str_replace(' ', '-', $title));
-        $slug = preg_replace('/[^a-z0-9-]/', '', $slug);
-        $slug = preg_replace('/-+/', '-', $slug);
-        $slug = trim($slug, '-');
+        $slug = \Illuminate\Support\Str::slug($title);
+        if (empty($slug)) {
+            $slug = 'blog-' . time();
+        }
         
         // Check if slug exists and make it unique
         $originalSlug = $slug;

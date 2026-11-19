@@ -106,9 +106,7 @@
 </head>
 <body>
     <div class="report">
-        @if ($v['logoSrc'])
-            <img src="{{ $v['logoSrc'] }}" class="letterhead" alt="">
-        @endif
+        @include('reports.partials.header')
 
         <div class="title-bar">{{ $v['title'] }}</div>
 
@@ -273,12 +271,7 @@
         </table>
 
         {{-- Footer contact strip --}}
-        <div class="footer-band">
-            1A Walsall Road, Walsall, WS5 4QL
-            &nbsp;&middot;&nbsp; Phone: 01922 351933, 07777 138 166<br>
-            www.insighthealthservices.co.uk
-            &nbsp;&middot;&nbsp; bookings@insighthealthservices.co.uk
-        </div>
+        @include('reports.partials.footer')
     </div>
 </body>
 </html>

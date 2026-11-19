@@ -69,6 +69,14 @@ class ClinicalReportPdfService
     {
         $haystack = strtolower(($report->report_type ?? '') . ' ' . ($report->display_title ?? ''));
 
+        if (str_contains($haystack, 'growth') || str_contains($haystack, 'presentation')) {
+            return 'reports.growth-presentation';
+        }
+
+        if (str_contains($haystack, 'anomaly')) {
+            return 'reports.anomaly-scan';
+        }
+
         if (str_contains($haystack, '3d') || str_contains($haystack, '4d')) {
             return 'reports.3d-4d-scan';
         }
@@ -77,7 +85,7 @@ class ClinicalReportPdfService
             return 'reports.early-pregnancy';
         }
 
-        return view()->exists('reports.3d-4d-scan') ? 'reports.3d-4d-scan' : 'reports.early-pregnancy';
+        return view()->exists('reports.growth-presentation') ? 'reports.growth-presentation' : (view()->exists('reports.anomaly-scan') ? 'reports.anomaly-scan' : (view()->exists('reports.3d-4d-scan') ? 'reports.3d-4d-scan' : 'reports.early-pregnancy'));
     }
 
     /** Generates the PDF and writes it to storage, returning the relative path. */
@@ -107,6 +115,25 @@ class ClinicalReportPdfService
         $multipleVal = $this->text($data['multiple'] ?? '');
         $isMultiple = strtolower($fetalNumber) === 'multiple' || strtolower($multipleVal) === 'yes';
 
+        $gestation = $this->text($data['gestation'] ?? '');
+        if (!$gestation && (!empty($data['gestationWeeks']) || !empty($data['gestationDays']))) {
+            $w = $this->text($data['gestationWeeks'] ?? '');
+            $d = $this->text($data['gestationDays'] ?? '');
+            $parts = [];
+            if ($w) $parts[] = $w . ' Weeks';
+            if ($d) $parts[] = $d . ' Days';
+            $gestation = implode(' ', $parts);
+        }
+
+        $haystack = strtolower(($report->report_type ?? '') . ' ' . ($report->display_title ?? ''));
+
+        $defaultComments = 'Advised to follow NHS antenatal care pathway.';
+        if (str_contains($haystack, 'growth') || str_contains($haystack, 'presentation')) {
+            $defaultComments = 'Normal growth velocity. Advised to follow NHS antenatal care pathway.';
+        } elseif (str_contains($haystack, 'anomaly')) {
+            $defaultComments = 'No obvious fetal abnormalities detected on scan today. Advised to follow NHS antenatal care pathway';
+        }
+
         return [
             'title'             => trim(preg_replace('/\s*\(PDF\)\s*$/i', '', (string) $report->display_title)),
             'patient_name'      => $name,
@@ -118,23 +145,65 @@ class ClinicalReportPdfService
             'clinical_indication' => $this->text($data['clinicalIndication'] ?? ''),
             'scan_method'       => $this->text($data['scanMethod'] ?? '') ?: 'Transabdominal',
             'fetal_heart'       => $this->text($data['fetalHeart'] ?? '') ?: 'Present',
+            'fetal_movement'    => $this->text($data['fetalMovement'] ?? ($data['fetalMovements'] ?? ($data['movements'] ?? 'Normal'))),
             'placenta'          => $this->text($data['placenta'] ?? '') ?: 'Anterior',
+            'placenta_site'     => $this->text($data['placentaSite'] ?? ($data['placentaLocation'] ?? ($data['placenta'] ?? 'Fundal'))),
             'singleton'         => $isMultiple ? 'No' : ($this->text($data['singleton'] ?? '') ?: 'Yes'),
             'multiple'          => $isMultiple ? ($multipleVal ?: 'Yes') : 'No',
             'placental_position' => $this->text($data['placentalPosition'] ?? '') ?: 'Clear of Os',
+            'gestation'         => $gestation,
             'gestation_weeks'   => $this->text($data['gestationWeeks'] ?? ''),
             'gestation_days'    => $this->text($data['gestationDays'] ?? ''),
             'edd'               => $this->date($data['edd'] ?? ''),
             'hc'                => $this->text($data['hc'] ?? ''),
+            'hc_weeks'          => $this->text($data['hcWeeks'] ?? ''),
+            'hc_days'           => $this->text($data['hcDays'] ?? ''),
             'ac'                => $this->text($data['ac'] ?? ''),
+            'ac_weeks'          => $this->text($data['acWeeks'] ?? ''),
+            'ac_days'           => $this->text($data['acDays'] ?? ''),
             'fl'                => $this->text($data['fl'] ?? ''),
-            'fetal_presentation'=> $this->text($data['fetalPresentation'] ?? '') ?: 'Cephalic',
-            'fetal_movements'   => $this->text($data['fetalMovements'] ?? '') ?: 'Visualised',
-            'amniotic_fluid_mpd'=> $this->text($data['amnioticFluidMpd'] ?? ''),
-            'edf'               => $this->text($data['edf'] ?? '') ?: 'Present',
+            'fl_weeks'          => $this->text($data['flWeeks'] ?? ''),
+            'fl_days'           => $this->text($data['flDays'] ?? ''),
+            'cer'               => $this->text($data['cer'] ?? ($data['cerebellum'] ?? '')),
+            'fetal_presentation'=> $this->text($data['fetalPresentation'] ?? ($data['presentation'] ?? 'Cephalic')),
+            'fetal_movements'   => $this->text($data['fetalMovements'] ?? ($data['fetalMovement'] ?? ($data['movements'] ?? 'Visualised'))),
+            'amniotic_fluid_mpd'=> $this->text($data['amnioticFluidMpd'] ?? ($data['liquorVolume'] ?? '')),
+            'end_diastolic_flow'=> $this->text($data['endDiastolicFlow'] ?? ($data['edf'] ?? 'Positive / Normal')),
+            'edf'               => $this->text($data['edf'] ?? ($data['endDiastolicFlow'] ?? 'Present')),
+            'pi'                => $this->text($data['pi'] ?? ''),
+            'ri'                => $this->text($data['ri'] ?? ''),
             'efw_oz_lb'         => $this->text($data['efwOzLb'] ?? ''),
-            'efw_grams'         => $this->text($data['efwGrams'] ?? ''),
-            'comments'          => $this->text($data['reportSummary'] ?? ($data['comments'] ?? 'Advised to follow NHS antenatal care pathway.')),
+            'efw_grams'         => $this->text($data['efwGrams'] ?? ($data['efw'] ?? '')),
+            // Anomaly specific primary & gender fields
+            'fetal_heart_beat'  => $this->text($data['fetalHeartBeat'] ?? ($data['fetalHeart'] ?? 'Visualized')),
+            'placenta_position' => $this->text($data['placentaPosition'] ?? ($data['placentalPosition'] ?? 'Posterior')),
+            'amniotic_fluid'    => $this->text($data['amnioticFluid'] ?? 'Normal'),
+            'gender_requested'  => $this->text($data['genderRequested'] ?? 'Yes'),
+            'fetal_gender'      => $this->text($data['fetalGender'] ?? 'Female'),
+            // Detailed anatomy
+            'skull'             => $this->text($data['skull'] ?? 'Normal'),
+            'atrium'            => $this->text($data['atrium'] ?? ''),
+            'brain_cns'         => $this->text($data['brainCNS'] ?? ($data['brain'] ?? 'Normal')),
+            'nuchal'            => $this->text($data['nuchal'] ?? 'Normal'),
+            'stomach'           => $this->text($data['stomach'] ?? 'Normal'),
+            'abdominal_wall'    => $this->text($data['abdominalWall'] ?? 'Normal'),
+            'bowel'             => $this->text($data['bowel'] ?? 'Normal'),
+            'kidneys_anatomy'   => $this->text($data['kidneysAnatomy'] ?? ($data['kidneys'] ?? 'Normal')),
+            'bladder'           => $this->text($data['bladder'] ?? 'Normal'),
+            'spine_sagittal'    => $this->text($data['spineSagittal'] ?? ($data['spine'] ?? 'Normal')),
+            'spine_transverse'  => $this->text($data['spineTransverse'] ?? ($data['spine'] ?? 'Normal')),
+            'spine_coronal'     => $this->text($data['spineCoronal'] ?? ($data['spine'] ?? 'Normal')),
+            'face_lips'         => $this->text($data['faceLips'] ?? 'Normal'),
+            'heart_4ch'         => $this->text($data['heart4ch'] ?? ($data['heart'] ?? 'Normal')),
+            'situs'             => $this->text($data['situs'] ?? 'Normal'),
+            'lvot'              => $this->text($data['lvot'] ?? 'Normal'),
+            'rvot'              => $this->text($data['rvot'] ?? 'Normal'),
+            'three_vt_view'     => $this->text($data['threeVtView'] ?? 'Normal'),
+            'femur_anatomy'     => $this->text($data['femurAnatomy'] ?? ($data['femur'] ?? 'Normal')),
+            'both_hands'        => $this->text($data['bothHands'] ?? 'Normal'),
+            'both_feet'         => $this->text($data['bothFeet'] ?? 'Normal'),
+            'scan_complete'     => $this->text($data['scanComplete'] ?? 'Yes'),
+            'comments'          => $this->text($data['comments'] ?? ($data['reportSummary'] ?? $defaultComments)),
             'sonographer'       => $this->text($data['sonographer'] ?? ''),
             'chaperone'         => $this->text($data['chaperone'] ?? ''),
             'status'            => (string) ($report->status ?? 'Finalized'),

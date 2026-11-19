@@ -517,11 +517,15 @@ class ServiceController extends Controller
                 }
             }
         } else {
-            $subCategory = SubCategory::create([
-                'category_id' => $validated['category_id'],
-                'name' => $validated['service_name'] ?? 'General',
-                'order' => 0,
-            ]);
+            $subCategory = SubCategory::firstOrCreate(
+                [
+                    'category_id' => $validated['category_id'],
+                    'name' => $validated['service_name'] ?? 'General',
+                ],
+                [
+                    'order' => 0,
+                ]
+            );
             $validated['sub_category_id'] = $subCategory->id;
             if (empty($validated['title'])) {
                 $validated['title'] = $validated['service_name'] ?? 'General';

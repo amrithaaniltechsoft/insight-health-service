@@ -16,6 +16,27 @@
 @endsection
 
 @section('content')
+    @if ($errors->any())
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <h5><i class="fas fa-exclamation-circle mr-2"></i>Validation Errors</h5>
+            <ul class="mb-0">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof $ !== 'undefined') {
+                    $('#addBlogModal').modal('show');
+                }
+            });
+        </script>
+    @endif
+
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert" id="successAlert">
             <i class="fas fa-check-circle mr-2"></i>
@@ -78,7 +99,7 @@
                                     <select class="form-control" id="category_id" name="category_id" required onchange="loadSubCategories(this.value, 'sub_category_id')">
                                         <option value="">-- Select Category --</option>
                                         @foreach($categories as $category)
-                                            <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                            <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -96,7 +117,7 @@
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="title" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Blog Title <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="title" name="title" placeholder="Enter blog title" required>
+                                    <input type="text" class="form-control" id="title" name="title" placeholder="Enter blog title" value="{{ old('title') }}" required>
                                 </div>
                             </div>
                         </div>
@@ -107,17 +128,18 @@
                                     <label for="image" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Featured Image</label>
                                     <div class="input-group">
                                         <div class="custom-file">
-                                            <input type="file" class="custom-file-input" id="image" name="image" accept="image/*" required>
+                                            <input type="file" class="custom-file-input" id="image" name="image" accept="image/*">
                                             <label class="custom-file-label" for="image">Choose file</label>
                                         </div>
                                     </div>
+                                    <small class="form-text text-muted">PNG, JPG, GIF, WebP (Max: 10MB)</small>
                                 </div>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="description" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description <span class="text-danger">*</span></label>
-                            <textarea class="form-control summernote" id="description" name="description" rows="5" placeholder="Enter blog description"></textarea>
+                            <textarea class="form-control summernote" id="description" name="description" rows="5" placeholder="Enter blog description">{{ old('description') }}</textarea>
                         </div>
 
                         <hr>
@@ -127,21 +149,21 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="meta_title" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Title</label>
-                                    <input type="text" class="form-control" id="meta_title" name="meta_title" placeholder="Enter meta title">
+                                    <input type="text" class="form-control" id="meta_title" name="meta_title" placeholder="Enter meta title" value="{{ old('meta_title') }}">
                                 </div>
                             </div>
 
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="meta_keywords" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Keywords</label>
-                                    <input type="text" class="form-control" id="meta_keywords" name="meta_keywords" placeholder="Enter meta keywords (comma separated)">
+                                    <input type="text" class="form-control" id="meta_keywords" name="meta_keywords" placeholder="Enter meta keywords (comma separated)" value="{{ old('meta_keywords') }}">
                                 </div>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="meta_description" style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Meta Description</label>
-                            <textarea class="form-control" id="meta_description" name="meta_description" rows="3" placeholder="Enter meta description"></textarea>
+                            <textarea class="form-control" id="meta_description" name="meta_description" rows="3" placeholder="Enter meta description">{{ old('meta_description') }}</textarea>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -567,7 +589,7 @@
             });
         });
 
-        // Reload table after form submission
+        // Sync Summernote code to underlying textarea before form submission
         $('#addBlogForm').on('submit', function(e) {
             let description = $('#description').summernote('code');
             if(!description || description.trim() === '' || description === '<p><br></p>') {
@@ -576,6 +598,7 @@
                 $('#description').summernote('focus');
                 return false;
             }
+            $('#description').val(description);
         });
 
         // Reload table when modal is closed
@@ -597,9 +620,14 @@
         });
     });
 
-    // Initialize Summernote editor
+    // Initialize Summernote editor with sync callback
     $('.summernote').summernote({
         height: 200,
+        callbacks: {
+            onChange: function(contents) {
+                $(this).val(contents);
+            }
+        },
         toolbar: [
             ['style', ['style']],
             ['font', ['bold', 'underline', 'clear']],
@@ -625,6 +653,7 @@
                         $(textarea).summernote('focus');
                         return false;
                     }
+                    $(textarea).val(description);
                 }
             });
         }

@@ -29,6 +29,21 @@
         </div>
     @endif
 
+    @if($errors->any())
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            <strong>Please fix the following errors:</strong>
+            <ul class="mb-0 pl-3 mt-1">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+    @endif
+
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">{{ $category->name }} Services</h3>
@@ -172,8 +187,8 @@
                         </div>
                         @endif
                         <div class="form-group">
-                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description <span class="text-danger">*</span></label>
-                            <textarea class="form-control summernote" name="description1" rows="4" required></textarea>
+                            <label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description @if($category->id == 4)<span class="text-danger">*</span>@endif</label>
+                            <textarea class="form-control summernote" name="description1" rows="4"></textarea>
                         </div>
                         @if($category->id == 4)
                         <div class="form-group">
@@ -337,7 +352,7 @@
                         <button type="submit" class="btn" style="background-color: #28a745; color: white; border: none;">
                             <i class="fas fa-save mr-2"></i>
                             @if($category->id == 4)Update Blood test
-                            @elseif($category->id == 1)Edit Pregnancy Ultrasound Scans
+                            @elseif($category->id == 1)Update Pregnancy Ultrasound Scans
                             @elseif($category->id == 2)Edit General Ultrasound Scans
                             @elseif($category->id == 3)Edit Physiotherapy
                             @elseif($category->id == 5)Edit Other Diagnostics
@@ -635,7 +650,7 @@
                     html += '<div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Turn Around Time <span class="text-danger">*</span></label><input type="text" class="form-control" name="turn_around_time" value="' + (service.turn_around_time || '') + '" required></div></div></div>';
                     html += '<div class="row"><div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Code</label><input type="text" class="form-control" name="code" value="' + (service.code || '') + '" maxlength="50"></div></div>';
                     html += '<div class="col-md-6"><div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Tube</label><input type="text" class="form-control" name="tube" value="' + (service.tube || '') + '" maxlength="100"></div></div></div>';
-                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description <span class="text-danger">*</span></label><textarea class="form-control summernote" name="description1" rows="4" required>' + (service.description1 || '') + '</textarea></div>';
+                    html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Description <span class="text-danger">*</span></label><textarea class="form-control summernote" name="description1" rows="4">' + (service.description1 || '') + '</textarea></div>';
                     html += '<div class="form-group"><label style="color: #6c757d; font-size: 16px; font-weight: 600 !important;">Package Include</label><textarea class="form-control summernote" name="package_include" rows="4">' + (service.package_include || '') + '</textarea></div>';
                     $('#editServiceBody').html(html);
                     $('#editSubCategorySelect').val(service.sub_category_id);
@@ -837,6 +852,16 @@
         $(this).find('.summernote').each(function() {
             if ($(this).data('summernote')) {
                 $(this).summernote('destroy');
+            }
+        });
+    });
+
+    // Sync Summernote content to underlying textareas on form submit
+    $(document).on('submit', 'form', function() {
+        $(this).find('.summernote').each(function() {
+            if ($(this).data('summernote')) {
+                var code = $(this).summernote('code');
+                $(this).val(code);
             }
         });
     });
