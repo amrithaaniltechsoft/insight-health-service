@@ -18,12 +18,15 @@ class ShopController extends Controller
 
     public function getShops()
     {
-        $shops = Shop::orderBy('created_at', 'desc')->get();
+        $shops = Shop::with('colors')->orderBy('created_at', 'desc')->get();
         $data = [];
         foreach ($shops as $shop) {
             $imageUrl = null;
             if ($shop->image) {
                 $imageUrl = str_starts_with($shop->image, 'http') ? $shop->image : asset($shop->image);
+            } elseif ($shop->colors->count() > 0 && $shop->colors->first()->image) {
+                $colorImage = $shop->colors->first()->image;
+                $imageUrl = str_starts_with($colorImage, 'http') ? $colorImage : asset($colorImage);
             }
             $data[] = [
                 'id' => $shop->id,
@@ -38,7 +41,7 @@ class ShopController extends Controller
 
     public function getShopById($id)
     {
-        $shop = Shop::findOrFail($id);
+        $shop = Shop::with('colors')->findOrFail($id);
         $imageUrl = null;
         if ($shop->image) {
             if (str_starts_with($shop->image, 'http')) {
@@ -47,6 +50,9 @@ class ShopController extends Controller
             } else {
                 $imageUrl = asset($shop->image);
             }
+        } elseif ($shop->colors->count() > 0 && $shop->colors->first()->image) {
+            $colorImage = $shop->colors->first()->image;
+            $imageUrl = str_starts_with($colorImage, 'http') ? $colorImage : asset($colorImage);
         }
         return response()->json([
             'id' => $shop->id,
@@ -60,6 +66,14 @@ class ShopController extends Controller
 
     public function store(Request $request)
     {
+        // Filter out empty color rows before validation so empty default inputs do not trigger validation error
+        if ($request->has('colors') && is_array($request->colors)) {
+            $filteredColors = array_filter($request->colors, function ($color) {
+                return !empty($color['color_name']) || !empty($color['image']);
+            });
+            $request->merge(['colors' => !empty($filteredColors) ? array_values($filteredColors) : null]);
+        }
+
         $validated = $request->validate([
             'category' => 'required|string',
             'product_name' => 'required|string|max:255',
@@ -67,13 +81,14 @@ class ShopController extends Controller
             'description' => 'nullable|string',
             'colors' => 'nullable|array',
             'colors.*.color_name' => 'required|string|max:255',
-            'colors.*.image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'colors.*.image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
         ]);
 
         $shop = Shop::create($validated);
 
         // Handle colors and their images
-        if ($request->has('colors')) {
+        $primaryImage = null;
+        if ($request->has('colors') && is_array($request->colors)) {
             foreach ($request->colors as $colorData) {
                 if (isset($colorData['color_name']) && !empty($colorData['color_name'])) {
                     $colorData['shop_id'] = $shop->id;
@@ -81,11 +96,20 @@ class ShopController extends Controller
                     if (isset($colorData['image']) && $colorData['image'] instanceof \Illuminate\Http\UploadedFile) {
                         $imagePath = $colorData['image']->store('shop_colors', 'public');
                         $colorData['image'] = 'storage/' . $imagePath;
+                        if (!$primaryImage) {
+                            $primaryImage = $colorData['image'];
+                        }
+                    } else {
+                        $colorData['image'] = null;
                     }
                     
                     ShopColor::create($colorData);
                 }
             }
+        }
+
+        if ($primaryImage && !$shop->image) {
+            $shop->update(['image' => $primaryImage]);
         }
 
         return redirect()->route('shops.admin.index')->with('success', 'Shop product created successfully!');
@@ -94,6 +118,14 @@ class ShopController extends Controller
     public function update(Request $request, $id)
     {
         $shop = Shop::findOrFail($id);
+
+        // Filter out empty color rows before validation
+        if ($request->has('colors') && is_array($request->colors)) {
+            $filteredColors = array_filter($request->colors, function ($color) {
+                return !empty($color['color_name']) || !empty($color['image']) || !empty($color['existing_image']);
+            });
+            $request->merge(['colors' => !empty($filteredColors) ? array_values($filteredColors) : null]);
+        }
 
         $validated = $request->validate([
             'category' => 'required|string',
@@ -104,13 +136,14 @@ class ShopController extends Controller
             'colors.*.id' => 'nullable|integer',
             'colors.*.existing_image' => 'nullable|string',
             'colors.*.color_name' => 'required|string|max:255',
-            'colors.*.image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'colors.*.image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
         ]);
 
         $shop->update($validated);
 
         // Handle colors and their images
-        if ($request->has('colors')) {
+        $primaryImage = $shop->image;
+        if ($request->has('colors') && is_array($request->colors)) {
             $submittedIds = [];
             
             foreach ($request->colors as $colorData) {
@@ -120,8 +153,14 @@ class ShopController extends Controller
                     if (isset($colorData['image']) && $colorData['image'] instanceof \Illuminate\Http\UploadedFile) {
                         $imagePath = $colorData['image']->store('shop_colors', 'public');
                         $colorData['image'] = 'storage/' . $imagePath;
-                    } elseif (isset($colorData['existing_image'])) {
+                        if (!$primaryImage) {
+                            $primaryImage = $colorData['image'];
+                        }
+                    } elseif (isset($colorData['existing_image']) && !empty($colorData['existing_image'])) {
                         $colorData['image'] = $colorData['existing_image'];
+                        if (!$primaryImage) {
+                            $primaryImage = $colorData['image'];
+                        }
                     } else {
                         $colorData['image'] = null;
                     }
@@ -146,6 +185,10 @@ class ShopController extends Controller
         } else {
             // Delete all colors if the colors input array is not sent at all (meaning all colors were deleted)
             $shop->colors()->delete();
+        }
+
+        if ($primaryImage && $shop->image !== $primaryImage) {
+            $shop->update(['image' => $primaryImage]);
         }
 
         return redirect()->route('shops.admin.index')->with('success', 'Shop product updated successfully!');

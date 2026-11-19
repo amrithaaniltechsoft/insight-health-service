@@ -35,6 +35,21 @@
         </script>
     @endif
 
+    @if($errors->any())
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            <strong>Please fix the following errors:</strong>
+            <ul class="mb-0 pl-3 mt-1">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+    @endif
+
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">Shop Products</h3>
@@ -406,7 +421,7 @@
                 }
             ],
             "pageLength": 10,
-            "order": [[1, "asc"]]
+            "order": []
         });
 
         // Re-number SI column after each draw
@@ -477,11 +492,13 @@
             });
         });
 
-        // Reload table after form submission
-        $('#addShopForm').on('submit', function(e) {
-            let description = $('#add_description').summernote('code');
-            if(!description || description.trim() === '' || description === '<p><br></p>') {
-            }
+        // Sync Summernote content to underlying textareas on form submit
+        $(document).on('submit', 'form', function() {
+            $(this).find('.summernote').each(function() {
+                if ($(this).data('summernote')) {
+                    $(this).val($(this).summernote('code'));
+                }
+            });
         });
 
         // Reload table when modal is closed
