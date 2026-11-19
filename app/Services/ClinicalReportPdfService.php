@@ -77,6 +77,10 @@ class ClinicalReportPdfService
             return 'reports.anomaly-scan';
         }
 
+        if (str_contains($haystack, 'pelvic') || str_contains($haystack, 'gynaecological')) {
+            return 'reports.pelvic-wellbeing';
+        }
+
         if (str_contains($haystack, '3d') || str_contains($haystack, '4d')) {
             return 'reports.3d-4d-scan';
         }
@@ -206,6 +210,20 @@ class ClinicalReportPdfService
             'comments'          => $this->text($data['comments'] ?? ($data['reportSummary'] ?? $defaultComments)),
             'sonographer'       => $this->text($data['sonographer'] ?? ''),
             'chaperone'         => $this->text($data['chaperone'] ?? ''),
+            // Pelvic Ultrasound scan specific fields
+            'address'           => $this->text($data['address'] ?? ($patient?->address ?? '')),
+            'nhs_no'            => $this->text($data['nhsNumber'] ?? ($data['nhsNo'] ?? '')),
+            'study_description' => $this->text($data['studyDescription'] ?? 'Gynaecological ultrasound'),
+            'referrer'          => $this->text($data['referrer'] ?? 'Self-referral'),
+            'decontamination'   => $this->text($data['decontamination'] ?? 'Transabdominal and transvaginal ultrasound examination performed with consent. Consent form signed. Transvaginal probe decontaminated with TRISTEL DUO LOT (10) 816901 Expiry date: 09.07.2026'),
+            'clinical_indication' => $this->text($data['clinicalIndication'] ?? 'Nil gynae history. Nil medical history.'),
+            'lmp'               => $this->text($data['lmp'] ?? ''),
+            'para'              => $this->text($data['para'] ?? ''),
+            'normal_births'     => $this->text($data['normalBirths'] ?? ''),
+            'cs'                => $this->text($data['cs'] ?? ''),
+            'scan_findings'     => $this->text($data['scanFindings'] ?? "Normal looking anteverted uterus measures : \nThe myometrium is unremarkable\nCx appears normal – up to date with smears. \nEndometrium is well defined/triphasic measuring    mm \nBoth ovaries are normal in size/shape and appearance. \nNil adnexal mass/cyst or free fluid."),
+            'impression'        => $this->text($data['impression'] ?? ($data['clinicalObservations'] ?? '')),
+            'disclaimer'        => $this->text($data['disclaimer'] ?? "The pelvic ultrasound scan has been performed with care and is intended to aid in monitoring your overall health. However, due to the inherent limitations of ultrasound, not all pathologies may be detected. The findings on today’s scan should be reviewed alongside usual NHS care. This report does not replace a full clinical evaluation. Insight Health service is not liable for any undetected conditions or outcomes."),
             'status'            => (string) ($report->status ?? 'Finalized'),
             'logoSrc'           => $this->imageDataUri('reports/letterhead.jpg'),
             'footerBg'          => $this->imageDataUri('reports/footer-band-clean.jpg'),

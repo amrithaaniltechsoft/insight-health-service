@@ -79,11 +79,11 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="description" class="font-weight-bold">Page Description / Summary</label>
-                            <textarea class="form-control @error('description') is-invalid @enderror" 
-                                      id="description" name="description" rows="3" 
+                            <label for="description" class="font-weight-bold">Page Description / Content</label>
+                            <textarea class="form-control summernote @error('description') is-invalid @enderror" 
+                                      id="description" name="description" rows="5" 
                                       placeholder="Summary of this page's content and services">{{ old('description', $pageSeo->description) }}</textarea>
-                            <small class="form-text text-muted">Used as on-page description and fallback for meta descriptions.</small>
+                            <small class="form-text text-muted">Used as on-page description / content and fallback for meta descriptions.</small>
                             @error('description')
                                 <span class="invalid-feedback">{{ $message }}</span>
                             @enderror
@@ -341,6 +341,7 @@
 @stop
 
 @section('css')
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.css" rel="stylesheet">
 <style>
     .font-monospace {
         font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -349,12 +350,81 @@
     .custom-file-label::after {
         content: "Browse";
     }
+    .note-editor.note-frame {
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+    }
+    .note-modal {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        z-index: 1070 !important;
+    }
+    .note-modal-backdrop {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        z-index: 1065 !important;
+        background-color: rgba(0, 0, 0, 0.5) !important;
+    }
+    .note-modal .note-modal-content {
+        position: relative;
+        z-index: 1071 !important;
+        background: #fff;
+    }
+    .note-modal input.note-input {
+        background-color: #fff !important;
+        cursor: text !important;
+    }
 </style>
 @stop
 
 @section('js')
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
 <script>
+
     $(document).ready(function() {
+        // Strip HTML helper
+        function stripHtml(html) {
+            if (!html) return '';
+            let tmp = document.createElement("DIV");
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || "";
+        }
+
+        // Initialize Summernote
+        $('#description').summernote({
+            height: 200,
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['fontname', ['fontname']],
+                ['fontsize', ['fontsize']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['table', ['table']],
+                ['insert', ['link', 'picture', 'video']],
+                ['view', ['fullscreen', 'codeview', 'help']]
+            ],
+            callbacks: {
+                onChange: function(contents) {
+                    $('#description').val(contents);
+                    updatePreview();
+                }
+            }
+        });
+
+        // Sync Summernote before submit
+        $('#pageSeoEditForm').on('submit', function() {
+            if ($('#description').data('summernote')) {
+                var code = $('#description').summernote('code');
+                $('#description').val(code === '<p><br></p>' ? '' : code);
+            }
+        });
         let hasExistingImage = {{ $pageSeo->image ? 'true' : 'false' }};
 
         $('#image').on('change', function(e) {
@@ -376,7 +446,7 @@
             let page = $('#page_name').val().trim();
             let title = $('#title').val().trim();
             let metaTitle = $('#meta_title').val().trim();
-            let desc = $('#description').val().trim();
+            let desc = stripHtml($('#description').val()).trim();
             let metaDesc = $('#meta_description').val().trim();
             let canonical = $('#canonical_url').val().trim();
 

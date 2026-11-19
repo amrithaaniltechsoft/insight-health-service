@@ -124,7 +124,7 @@
     </div>
 
     <!-- Add Page SEO Slide-In Modal -->
-    <div class="modal fade" id="addPageSeoModal" tabindex="-1" role="dialog" aria-labelledby="addPageSeoModalLabel" aria-hidden="true">
+    <div class="modal fade" id="addPageSeoModal" role="dialog" aria-labelledby="addPageSeoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-right" role="document">
             <div class="modal-content">
                 <div class="modal-header" style="background-color: #28a745; color: white;">
@@ -155,7 +155,7 @@
 
                         <div class="form-group">
                             <label for="add_description" class="font-weight-bold" style="color: #495057;">Page Description / Content</label>
-                            <textarea class="form-control" id="add_description" name="description" rows="3" placeholder="Brief summary of this page's content"></textarea>
+                            <textarea class="form-control summernote" id="add_description" name="description" rows="5" placeholder="Enter page description or content"></textarea>
                         </div>
 
                         <div class="form-group">
@@ -259,7 +259,7 @@
     </div>
 
     <!-- Edit Page SEO Slide-In Modal -->
-    <div class="modal fade" id="editPageSeoModal" tabindex="-1" role="dialog" aria-labelledby="editPageSeoModalLabel" aria-hidden="true">
+    <div class="modal fade" id="editPageSeoModal" role="dialog" aria-labelledby="editPageSeoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-right" role="document">
             <div class="modal-content">
                 <div class="modal-header" style="background-color: #28a745; color: white;">
@@ -290,8 +290,8 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="modal_edit_description" class="font-weight-bold" style="color: #495057;">Page Description / Summary</label>
-                            <textarea class="form-control" id="modal_edit_description" name="description" rows="3"></textarea>
+                            <label for="modal_edit_description" class="font-weight-bold" style="color: #495057;">Page Description / Content</label>
+                            <textarea class="form-control summernote" id="modal_edit_description" name="description" rows="5"></textarea>
                         </div>
 
                         <div class="form-group">
@@ -380,7 +380,7 @@
     </div>
 
     <!-- View SEO Modal -->
-    <div class="modal fade" id="viewSeoModal" tabindex="-1" role="dialog" aria-labelledby="viewSeoModalLabel" aria-hidden="true">
+    <div class="modal fade" id="viewSeoModal" role="dialog" aria-labelledby="viewSeoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
                 <div class="modal-header bg-primary text-white py-3">
@@ -453,6 +453,12 @@
                                     <td id="modalPropTitle"></td>
                                 </tr>
                                 <tr>
+                                    <th class="pl-3">Page Content:</th>
+                                    <td>
+                                        <div id="modalPropContent" class="p-2 border rounded bg-light" style="max-height: 160px; overflow-y: auto;"></div>
+                                    </td>
+                                </tr>
+                                <tr>
                                     <th class="pl-3">Meta Title:</th>
                                     <td id="modalPropMetaTitle"></td>
                                 </tr>
@@ -497,6 +503,7 @@
 @stop
 
 @section('css')
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
 <style>
     #pageSeoTable tbody tr td {
@@ -514,14 +521,110 @@
             margin-top: 0;
         }
     }
+    .note-editor.note-frame {
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+    }
+    .note-editor .dropdown-toggle::after {
+        display: inline-block;
+    }
+    /* Ensure Summernote modal dialogs (Link, Image, Video) display on top and accept inputs */
+    .note-modal {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        z-index: 1070 !important;
+    }
+    .note-modal-backdrop {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        z-index: 1065 !important;
+        background-color: rgba(0, 0, 0, 0.5) !important;
+    }
+    .note-modal .note-modal-content {
+        position: relative;
+        z-index: 1071 !important;
+        background: #fff;
+    }
+    .note-modal input.note-input {
+        background-color: #fff !important;
+        cursor: text !important;
+    }
 </style>
 @stop
 
 @section('js')
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 <script>
+    // Crucial: Disable Bootstrap modal focus stealing so Summernote link/image dialog inputs can receive focus & typing
+    if ($.fn.modal && $.fn.modal.Constructor) {
+        $.fn.modal.Constructor.prototype._enforceFocus = function() {};
+    }
+
+    $(document).off('focusin.bs.modal');
+    $(document).on('shown.bs.modal', function() {
+        $(document).off('focusin.bs.modal');
+    });
+
+    $(document).on('focusin', function(e) {
+        if ($(e.target).closest('.note-modal, .note-modal-content, .note-dialog, .note-editor').length) {
+            e.stopImmediatePropagation();
+        }
+    });
+
+
     $(document).ready(function() {
+        var summernoteConfig = {
+            height: 180,
+            dialogsInBody: true,
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['fontname', ['fontname']],
+                ['fontsize', ['fontsize']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['table', ['table']],
+                ['insert', ['link', 'picture', 'video']],
+                ['view', ['fullscreen', 'codeview', 'help']]
+            ]
+        };
+
+        // Initialize Summernote
+        $('.summernote').summernote(summernoteConfig);
+
+        // Ensure Summernote is initialized when modals open
+        $(document).on('shown.bs.modal', '.modal', function() {
+            $(this).find('.summernote').each(function() {
+                if (!$(this).data('summernote')) {
+                    $(this).summernote(summernoteConfig);
+                }
+            });
+        });
+
+        // Reset Add Modal Summernote on close
+        $('#addPageSeoModal').on('hidden.bs.modal', function() {
+            if ($('#add_description').data('summernote')) {
+                $('#add_description').summernote('reset');
+            }
+        });
+
+        // Sync Summernote content to underlying textarea before submit
+        $(document).on('submit', 'form', function() {
+            $(this).find('.summernote').each(function() {
+                if ($(this).data('summernote')) {
+                    var code = $(this).summernote('code');
+                    $(this).val(code === '<p><br></p>' ? '' : code);
+                }
+            });
+        });
         if ($.fn.DataTable) {
             $('#pageSeoTable').DataTable({
                 "pageLength": 10,
@@ -592,7 +695,16 @@
                     $('#editPageSeoForm').attr('action', '/admin/page-seos/' + data.id);
                     $('#modal_edit_page_name').val(data.page_name);
                     $('#modal_edit_title').val(data.title || '');
-                    $('#modal_edit_description').val(data.description || '');
+                    
+                    let desc = data.description || '';
+                    if ($('#modal_edit_description').data('summernote')) {
+                        $('#modal_edit_description').summernote('code', desc);
+                    } else {
+                        $('#modal_edit_description').val(desc);
+                        $('#modal_edit_description').summernote(summernoteConfig);
+                        $('#modal_edit_description').summernote('code', desc);
+                    }
+
                     $('#modal_edit_meta_title').val(data.meta_title || '');
                     $('#modal_edit_meta_description').val(data.meta_description || '');
                     $('#modal_edit_meta_keywords').val(data.meta_keywords || '');
@@ -624,10 +736,18 @@
                 url: '/admin/page-seos/' + seoId + '/show',
                 type: 'GET',
                 success: function(seo) {
+                    function stripHtml(html) {
+                        if (!html) return '';
+                        let tmp = document.createElement("DIV");
+                        tmp.innerHTML = html;
+                        return tmp.textContent || tmp.innerText || "";
+                    }
+                    let cleanDesc = stripHtml(seo.description);
+
                     $('#modalPageTitle').text(seo.page_name);
                     $('#modalGoogleUrl').text(seo.canonical_url || ('https://insighthealthservices.co.uk/' + encodeURIComponent(seo.page_name.toLowerCase().replace(/\s+/g, '-'))));
                     $('#modalGoogleTitle').text(seo.meta_title || seo.title || seo.page_name);
-                    $('#modalGoogleDesc').text(seo.meta_description || seo.description || 'No meta description provided.');
+                    $('#modalGoogleDesc').text(seo.meta_description || cleanDesc || 'No meta description provided.');
 
                     if (seo.image) {
                         $('#modalSocialImage').attr('src', seo.image).show();
@@ -637,10 +757,11 @@
                     }
 
                     $('#modalSocialTitle').text(seo.og_title || seo.meta_title || seo.title || seo.page_name);
-                    $('#modalSocialDesc').text(seo.og_description || seo.meta_description || seo.description || '');
+                    $('#modalSocialDesc').text(seo.og_description || seo.meta_description || cleanDesc || '');
 
                     $('#modalPropPage').text(seo.page_name);
                     $('#modalPropTitle').text(seo.title || 'N/A');
+                    $('#modalPropContent').html(seo.description ? seo.description : '<span class="text-muted">None</span>');
                     $('#modalPropMetaTitle').text(seo.meta_title || 'N/A');
                     $('#modalPropMetaDesc').text(seo.meta_description || 'N/A');
                     $('#modalPropMetaKeywords').text(seo.meta_keywords || 'N/A');

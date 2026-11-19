@@ -163,6 +163,14 @@ class PageSeoController extends Controller
             return response()->json(null, 404);
         }
 
+        $cleanMetaDesc = $pageSeo->meta_description 
+            ? strip_tags($pageSeo->meta_description) 
+            : ($pageSeo->description ? trim(preg_replace('/\s+/', ' ', strip_tags($pageSeo->description))) : null);
+
+        $cleanOgDesc = $pageSeo->og_description 
+            ? strip_tags($pageSeo->og_description) 
+            : $cleanMetaDesc;
+
         return response()->json([
             'id' => $pageSeo->id,
             'page_name' => $pageSeo->page_name,
@@ -170,12 +178,12 @@ class PageSeoController extends Controller
             'description' => $pageSeo->description,
             'image' => $pageSeo->image_url,
             'meta_title' => $pageSeo->meta_title ?: $pageSeo->title,
-            'meta_description' => $pageSeo->meta_description ?: $pageSeo->description,
+            'meta_description' => $cleanMetaDesc,
             'meta_keywords' => $pageSeo->meta_keywords,
             'canonical_url' => $pageSeo->canonical_url,
             'robots' => $pageSeo->robots ?? 'index, follow',
             'og_title' => $pageSeo->og_title ?: ($pageSeo->meta_title ?: $pageSeo->title),
-            'og_description' => $pageSeo->og_description ?: ($pageSeo->meta_description ?: $pageSeo->description),
+            'og_description' => $cleanOgDesc,
             'schema_markup' => $pageSeo->schema_markup,
         ]);
     }
