@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PageSeo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PageSeoController extends Controller
 {
@@ -24,6 +25,51 @@ class PageSeoController extends Controller
     public function create()
     {
         return view('page_seos.admin.create');
+    }
+
+    /**
+     * Slugify the slug portion typed by the admin and build the full canonical URL.
+     * Existing records that already have a full URL stored are NOT touched (data-safe).
+     */
+    private function buildCanonicalUrl(?string $slugInput): ?string
+    {
+        if (!$slugInput) return null;
+
+        $base = rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/');
+
+        // If the admin already typed a full URL (starts with http), just slugify the path portion
+        if (str_starts_with($slugInput, 'http://') || str_starts_with($slugInput, 'https://')) {
+            // Extract path, slugify each segment, rebuild
+            $parsed = parse_url($slugInput);
+            $path   = trim($parsed['path'] ?? '', '/');
+            $slug   = collect(explode('/', $path))
+                ->map(fn($seg) => Str::slug($seg))
+                ->filter()
+                ->implode('/');
+            return $base . '/' . $slug;
+        }
+
+        // Plain slug / path typed by admin
+        $slug = collect(explode('/', trim($slugInput, '/')))
+            ->map(fn($seg) => Str::slug($seg))
+            ->filter()
+            ->implode('/');
+
+        return $slug ? $base . '/' . $slug : null;
+    }
+
+    /**
+     * Extract the slug portion from a full canonical URL or plain slug input.
+     */
+    private function extractSlug(?string $canonicalOrSlug): ?string
+    {
+        if (!$canonicalOrSlug) return null;
+        $base = rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/');
+        // Strip the base URL prefix if present
+        if (str_starts_with($canonicalOrSlug, $base . '/')) {
+            return substr($canonicalOrSlug, strlen($base) + 1);
+        }
+        return ltrim($canonicalOrSlug, '/');
     }
 
     /**
@@ -53,22 +99,23 @@ class PageSeoController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'page_name' => 'required|string|max:255|unique:page_seos,page_name',
-            'title' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:3072',
-            'meta_title' => 'nullable|string|max:255',
-            'meta_description' => 'nullable|string',
-            'meta_keywords' => 'nullable|string|max:500',
-            'canonical_url' => 'nullable|string|max:500',
-            'og_title' => 'nullable|string|max:255',
-            'og_description' => 'nullable|string',
-            'robots' => 'nullable|string|max:100',
-            'schema_markup' => 'nullable|string',
+            'page_name'       => 'required|string|max:255|unique:page_seos,page_name',
+            'title'           => 'nullable|string|max:255',
+            'description'     => 'nullable|string',
+            'image'           => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:3072',
+            'meta_title'      => 'nullable|string|max:255',
+            'meta_description'=> 'nullable|string',
+            'meta_keywords'   => 'nullable|string|max:500',
+            'canonical_url'   => 'nullable|string|max:500',
+            'og_title'        => 'nullable|string|max:255',
+            'og_description'  => 'nullable|string',
+            'robots'          => 'nullable|string|max:100',
+            'schema_markup'   => 'nullable|string',
         ]);
 
-        if (!empty($validated['description'])) {
-            $validated['description'] = $this->cleanDescription($validated['description']);
+        // Slugify the canonical URL input
+        if (!empty($validated['canonical_url'])) {
+            $validated['canonical_url'] = $this->buildCanonicalUrl($validated['canonical_url']);
         }
 
         if (array_key_exists('description', $validated)) {
@@ -141,6 +188,11 @@ class PageSeoController extends Controller
             'schema_markup' => 'nullable|string',
         ]);
 
+        // Slugify the canonical URL input
+        if (!empty($validated['canonical_url'])) {
+            $validated['canonical_url'] = $this->buildCanonicalUrl($validated['canonical_url']);
+        }
+
         if (array_key_exists('description', $validated)) {
             $validated['description'] = $this->cleanDescription($validated['description']);
         }
@@ -178,18 +230,26 @@ class PageSeoController extends Controller
 
     /**
      * Public API endpoint to fetch Page SEO data for the frontend.
+     * Primary lookup: canonical_url slug (the user-entered slug stored as full URL).
+     * Fallback: page_name matching (backwards-compatible with existing data).
      */
     public function getPublicPageSeo($pageName)
     {
-        $clean = trim($pageName, '/');
-        $pageSeo = PageSeo::where('page_name', $clean)
+        $clean    = strtolower(trim($pageName, '/'));
+        $base     = rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/');
+        $fullUrl  = $base . '/' . $clean;
+
+        $pageSeo = PageSeo::where('canonical_url', $fullUrl)
+            // Also match if stored without trailing slash
+            ->orWhere('canonical_url', $fullUrl . '/')
+            // Backwards-compat: page_name exact match
+            ->orWhere('page_name', $clean)
             ->orWhere('page_name', '/' . $clean)
-            ->orWhereRaw('LOWER(REPLACE(page_name, " ", "-")) = ?', [strtolower($clean)])
-            ->orWhereRaw('LOWER(page_name) = ?', [strtolower($clean)])
-            ->orWhere('canonical_url', 'http://localhost:3000/' . $clean)
-            ->orWhere('canonical_url', 'https://insighthealthservices.co.uk/' . $clean)
+            ->orWhereRaw('LOWER(REPLACE(page_name, " ", "-")) = ?', [$clean])
+            ->orWhereRaw('LOWER(page_name) = ?', [$clean])
+            // Legacy: canonical_url stored with other base URLs
             ->orWhereRaw('canonical_url LIKE ?', ['%/' . $clean])
-            ->orWhereRaw('LOWER(page_name) LIKE ?', [strtolower($clean) . '%'])
+            ->orWhereRaw('LOWER(page_name) LIKE ?', [$clean . '%'])
             ->first();
 
         if (!$pageSeo) {

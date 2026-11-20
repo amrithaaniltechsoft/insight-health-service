@@ -185,15 +185,26 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="canonical_url" class="font-weight-bold">
-                                        Canonical URL
+                                        Page Slug / Canonical URL
                                     </label>
-                                    <input type="url" class="form-control @error('canonical_url') is-invalid @enderror" 
-                                           id="canonical_url" name="canonical_url" value="{{ old('canonical_url', $pageSeo->canonical_url) }}" 
-                                           placeholder="https://insighthealthservices.co.uk/services" maxlength="500">
-                                    <small class="form-text text-muted">Prevents duplicate content penalties by indicating the primary canonical URL.</small>
-                                    @error('canonical_url')
-                                        <span class="invalid-feedback">{{ $message }}</span>
-                                    @enderror
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text text-muted small" style="font-size:0.78rem;white-space:nowrap;">
+                                                {{ rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/') }}/
+                                            </span>
+                                        </div>
+                                        <input type="text" class="form-control @error('canonical_url') is-invalid @enderror"
+                                               id="canonical_url" name="canonical_url"
+                                               value="{{ old('canonical_url', $pageSeo->canonical_url ? ltrim(str_replace(rtrim(env('FRONTEND_URL','https://insighthealthservices.co.uk'),'/') . '/', '', $pageSeo->canonical_url), '/') : '') }}"
+                                               placeholder="e.g. services/blood-tests" maxlength="500"
+                                               autocomplete="off">
+                                        @error('canonical_url')
+                                            <span class="invalid-feedback">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        Type only the slug path. It will be auto-slugified. Prevents duplicate content penalties.
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -425,6 +436,22 @@
                 $('#description').val(code === '<p><br></p>' ? '' : code);
             }
         });
+        // Auto-slugify canonical URL input as admin types
+        function slugifyPath(str) {
+            return str.split('/').map(function(seg) {
+                return seg.toLowerCase().trim()
+                    .replace(/[^a-z0-9\-]+/g, '-')
+                    .replace(/-{2,}/g, '-')
+                    .replace(/^-|-$/g, '');
+            }).join('/');
+        }
+
+        $('#canonical_url').on('input', function() {
+            var val = $(this).val();
+            var slugged = slugifyPath(val);
+            if (slugged !== val) $(this).val(slugged);
+        });
+
         let hasExistingImage = {{ $pageSeo->image ? 'true' : 'false' }};
 
         $('#image').on('change', function(e) {
@@ -480,7 +507,9 @@
             let displayDesc = metaDesc || desc || 'Provide a meta description to see how this page snippet will appear in Google search results.';
             $('#previewDesc').text(displayDesc);
 
-            let displayUrl = canonical || ('https://insighthealthservices.co.uk' + (page ? '/' + encodeURIComponent(page.toLowerCase().replace(/\s+/g, '-')) : ''));
+            let displayUrl = canonical
+                ? '{{ rtrim(env("FRONTEND_URL", "https://insighthealthservices.co.uk"), "/") }}/' + canonical.replace(/^\/+/, '')
+                : ('{{ rtrim(env("FRONTEND_URL", "https://insighthealthservices.co.uk"), "/") }}' + (page ? '/' + encodeURIComponent(page.toLowerCase().replace(/\s+/g, '-')) : ''));
             $('#previewUrl').text(displayUrl);
 
             updateChecklist();

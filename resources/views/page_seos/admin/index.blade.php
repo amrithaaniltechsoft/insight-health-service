@@ -200,9 +200,17 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="add_canonical_url" class="font-weight-bold" style="color: #495057;">Canonical URL</label>
-                                    <input type="url" class="form-control" id="add_canonical_url" name="canonical_url" placeholder="https://insighthealthservices.co.uk/services">
-                                    <small class="form-text text-muted">Prevents duplicate content issues.</small>
+                                    <label for="add_canonical_url" class="font-weight-bold" style="color: #495057;">Page Slug / Canonical URL</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text text-muted small" style="font-size:0.76rem;white-space:nowrap;">
+                                                {{ rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/') }}/
+                                            </span>
+                                        </div>
+                                        <input type="text" class="form-control" id="add_canonical_url" name="canonical_url"
+                                               placeholder="e.g. services/blood-tests" autocomplete="off">
+                                    </div>
+                                    <small class="form-text text-muted">Type the slug only — auto-slugified on save.</small>
                                 </div>
                             </div>
                         </div>
@@ -329,8 +337,17 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="modal_edit_canonical_url" class="font-weight-bold" style="color: #495057;">Canonical URL</label>
-                                    <input type="url" class="form-control" id="modal_edit_canonical_url" name="canonical_url" placeholder="https://insighthealthservices.co.uk/page">
+                                    <label for="modal_edit_canonical_url" class="font-weight-bold" style="color: #495057;">Page Slug / Canonical URL</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text text-muted small" style="font-size:0.76rem;white-space:nowrap;">
+                                                {{ rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/') }}/
+                                            </span>
+                                        </div>
+                                        <input type="text" class="form-control" id="modal_edit_canonical_url" name="canonical_url"
+                                               placeholder="e.g. services/blood-tests" autocomplete="off">
+                                    </div>
+                                    <small class="form-text text-muted">Type the slug only — auto-slugified on save.</small>
                                 </div>
                             </div>
                         </div>
@@ -580,6 +597,33 @@
     });
 
 
+    // Auto-slugify canonical URL inputs in modals as admin types
+    function slugify(str) {
+        return str
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9\/\-]+/g, '-')   // allow / for sub-paths
+            .replace(/-{2,}/g, '-')
+            .replace(/\/-/g, '/')
+            .replace(/-\//g, '/')
+            .replace(/^-|-$/g, '');
+    }
+
+    // Add modal canonical
+    $('#add_canonical_url').on('input', function() {
+        var val = $(this).val();
+        // Don't slugify while user might be typing slashes mid-path
+        var slugged = val.split('/').map(function(seg){ return slugify(seg); }).join('/');
+        if (slugged !== val) $(this).val(slugged);
+    });
+
+    // Edit modal canonical
+    $('#modal_edit_canonical_url').on('input', function() {
+        var val = $(this).val();
+        var slugged = val.split('/').map(function(seg){ return slugify(seg); }).join('/');
+        if (slugged !== val) $(this).val(slugged);
+    });
+
     $(document).ready(function() {
         var summernoteConfig = {
             height: 180,
@@ -708,7 +752,10 @@
                     $('#modal_edit_meta_title').val(data.meta_title || '');
                     $('#modal_edit_meta_description').val(data.meta_description || '');
                     $('#modal_edit_meta_keywords').val(data.meta_keywords || '');
-                    $('#modal_edit_canonical_url').val(data.canonical_url || '');
+                    // Strip the base URL prefix so only the slug is shown in the input
+                    var baseUrl = '{{ rtrim(env("FRONTEND_URL", "https://insighthealthservices.co.uk"), "/") }}/';
+                    var canonicalSlug = (data.canonical_url || '').replace(baseUrl, '').replace(/^\/+/, '');
+                    $('#modal_edit_canonical_url').val(canonicalSlug);
                     $('#modal_edit_robots').val(data.robots || 'index, follow');
                     $('#modal_edit_og_title').val(data.og_title || '');
                     $('#modal_edit_og_description').val(data.og_description || '');
