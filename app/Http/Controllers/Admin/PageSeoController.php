@@ -147,6 +147,12 @@ class PageSeoController extends Controller
     public function show($id)
     {
         $pageSeo = PageSeo::findOrFail($id);
+        $base = rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/');
+        $rawCanonical = $pageSeo->canonical_url;
+        $fullCanonical = $rawCanonical
+            ? (str_starts_with($rawCanonical, 'http') ? $rawCanonical : $base . '/' . ltrim($rawCanonical, '/'))
+            : null;
+
         return response()->json([
             'id' => $pageSeo->id,
             'page_name' => $pageSeo->page_name,
@@ -156,7 +162,7 @@ class PageSeoController extends Controller
             'meta_title' => $pageSeo->meta_title,
             'meta_description' => $pageSeo->meta_description,
             'meta_keywords' => $pageSeo->meta_keywords,
-            'canonical_url' => $pageSeo->canonical_url,
+            'canonical_url' => $fullCanonical,
             'og_title' => $pageSeo->og_title,
             'og_description' => $pageSeo->og_description,
             'robots' => $pageSeo->robots ?? 'index, follow',
@@ -230,7 +236,7 @@ class PageSeoController extends Controller
 
     /**
      * Public API endpoint to fetch Page SEO data for the frontend.
-     * Primary lookup: canonical_url slug (the user-entered slug stored as full URL).
+     * Primary lookup: canonical_url (supports full URLs with domain, or slug-only values).
      * Fallback: page_name matching (backwards-compatible with existing data).
      */
     public function getPublicPageSeo($pageName)
@@ -239,18 +245,27 @@ class PageSeoController extends Controller
         $base     = rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/');
         $fullUrl  = $base . '/' . $clean;
 
-        $pageSeo = PageSeo::where('canonical_url', $fullUrl)
-            // Also match if stored without trailing slash
-            ->orWhere('canonical_url', $fullUrl . '/')
-            // Backwards-compat: page_name exact match
-            ->orWhere('page_name', $clean)
-            ->orWhere('page_name', '/' . $clean)
-            ->orWhereRaw('LOWER(REPLACE(page_name, " ", "-")) = ?', [$clean])
-            ->orWhereRaw('LOWER(page_name) = ?', [$clean])
-            // Legacy: canonical_url stored with other base URLs
-            ->orWhereRaw('canonical_url LIKE ?', ['%/' . $clean])
-            ->orWhereRaw('LOWER(page_name) LIKE ?', [$clean . '%'])
-            ->first();
+        $pageSeo = PageSeo::where(function($q) use ($clean, $fullUrl, $base) {
+            $q->where('canonical_url', $clean)
+              ->orWhere('canonical_url', '/' . $clean)
+              ->orWhere('canonical_url', $clean . '/')
+              ->orWhere('canonical_url', '/' . $clean . '/')
+              ->orWhere('canonical_url', $fullUrl)
+              ->orWhere('canonical_url', $fullUrl . '/')
+              ->orWhereRaw("LOWER(TRIM(BOTH '/' FROM canonical_url)) = ?", [$clean])
+              ->orWhereRaw("LOWER(TRIM(BOTH '/' FROM REPLACE(canonical_url, ?, ''))) = ?", [$base, $clean])
+              ->orWhereRaw("LOWER(TRIM(BOTH '/' FROM REPLACE(canonical_url, 'https://insighthealthservices.co.uk', ''))) = ?", [$clean])
+              ->orWhereRaw("LOWER(TRIM(BOTH '/' FROM REPLACE(canonical_url, 'http://localhost:3000', ''))) = ?", [$clean])
+              ->orWhereRaw("LOWER(TRIM(BOTH '/' FROM REPLACE(canonical_url, 'http://localhost:3001', ''))) = ?", [$clean])
+              ->orWhereRaw("LOWER(TRIM(BOTH '/' FROM REPLACE(canonical_url, 'http://127.0.0.1:8000', ''))) = ?", [$clean])
+              ->orWhereRaw("LOWER(canonical_url) LIKE ?", ['%/' . $clean])
+              ->orWhereRaw("LOWER(canonical_url) LIKE ?", ['%/' . $clean . '/'])
+              ->orWhere('page_name', $clean)
+              ->orWhere('page_name', '/' . $clean)
+              ->orWhereRaw('LOWER(REPLACE(page_name, " ", "-")) = ?', [$clean])
+              ->orWhereRaw('LOWER(page_name) = ?', [$clean])
+              ->orWhereRaw('LOWER(page_name) LIKE ?', [$clean . '%']);
+        })->first();
 
         if (!$pageSeo) {
             return response()->json(null, 404);
@@ -264,6 +279,15 @@ class PageSeoController extends Controller
             ? strip_tags($pageSeo->og_description) 
             : $cleanMetaDesc;
 
+        $returnCanonical = $pageSeo->canonical_url;
+        if ($returnCanonical) {
+            if (!str_starts_with($returnCanonical, 'http://') && !str_starts_with($returnCanonical, 'https://')) {
+                $returnCanonical = $base . '/' . ltrim($returnCanonical, '/');
+            }
+        } else {
+            $returnCanonical = $base . '/' . $clean;
+        }
+
         return response()->json([
             'id' => $pageSeo->id,
             'page_name' => $pageSeo->page_name,
@@ -273,7 +297,7 @@ class PageSeoController extends Controller
             'meta_title' => $pageSeo->meta_title ?: $pageSeo->title,
             'meta_description' => $cleanMetaDesc,
             'meta_keywords' => $pageSeo->meta_keywords,
-            'canonical_url' => $pageSeo->canonical_url,
+            'canonical_url' => $returnCanonical,
             'robots' => $pageSeo->robots ?? 'index, follow',
             'og_title' => $pageSeo->og_title ?: ($pageSeo->meta_title ?: $pageSeo->title),
             'og_description' => $cleanOgDesc,
