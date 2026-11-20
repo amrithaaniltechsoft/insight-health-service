@@ -87,12 +87,20 @@
                             @endif
                         </td>
                         <td>
-                            @if($seo->canonical_url)
-                                <a href="{{ $seo->canonical_url }}" target="_blank" class="text-truncate d-inline-block small" style="max-width: 220px;" title="{{ $seo->canonical_url }}">
-                                    <i class="fas fa-external-link-alt mr-1"></i>{{ $seo->canonical_url }}
+                            @php
+                                $base = rtrim(env('FRONTEND_URL', 'https://insighthealthservices.co.uk'), '/');
+                                $rawCanonical = $seo->canonical_url;
+                                // If stored value is already a full URL, use as-is; otherwise prepend base
+                                $fullCanonical = $rawCanonical
+                                    ? (str_starts_with($rawCanonical, 'http') ? $rawCanonical : $base . '/' . ltrim($rawCanonical, '/'))
+                                    : null;
+                            @endphp
+                            @if($fullCanonical)
+                                <a href="{{ $fullCanonical }}" target="_blank" class="text-truncate d-inline-block small" style="max-width: 260px;" title="{{ $fullCanonical }}">
+                                    <i class="fas fa-external-link-alt mr-1"></i>{{ $fullCanonical }}
                                 </a>
                             @else
-                                <span class="badge badge-light text-muted">Auto-generated</span>
+                                <span class="badge badge-light text-muted">Not set</span>
                             @endif
                         </td>
                         <td class="text-center">
