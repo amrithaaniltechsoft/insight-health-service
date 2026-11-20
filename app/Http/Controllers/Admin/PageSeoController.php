@@ -27,6 +27,27 @@ class PageSeoController extends Controller
     }
 
     /**
+     * Clean and normalize rich HTML content (decodes entities if pasted as raw markup, strips Word artifacts).
+     */
+    private function cleanDescription(?string $content): ?string
+    {
+        if (!$content) return null;
+
+        $html = $content;
+
+        // If content was saved as escaped entities (&lt;p...&gt;), decode into real HTML
+        if (preg_match('/&(?:lt|#60|#x3c);(p|div|span|h[1-6]|ul|ol|li|table|a|b|strong|i|em|br)\b/i', $html)) {
+            $html = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        // Clean up Microsoft Word / Office artifacts like <o:p></o:p>
+        $html = preg_replace('/<o:p\b[^>]*>.*?<\/o:p>/is', '', $html);
+        $html = preg_replace('/<\/?o:p[^>]*>/i', '', $html);
+
+        return $html;
+    }
+
+    /**
      * Store a newly created page SEO record in storage.
      */
     public function store(Request $request)
@@ -45,6 +66,14 @@ class PageSeoController extends Controller
             'robots' => 'nullable|string|max:100',
             'schema_markup' => 'nullable|string',
         ]);
+
+        if (!empty($validated['description'])) {
+            $validated['description'] = $this->cleanDescription($validated['description']);
+        }
+
+        if (array_key_exists('description', $validated)) {
+            $validated['description'] = $this->cleanDescription($validated['description']);
+        }
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('page_seo', 'public');
@@ -75,7 +104,7 @@ class PageSeoController extends Controller
             'id' => $pageSeo->id,
             'page_name' => $pageSeo->page_name,
             'title' => $pageSeo->title,
-            'description' => $pageSeo->description,
+            'description' => $this->cleanDescription($pageSeo->description),
             'image' => $pageSeo->image_url,
             'meta_title' => $pageSeo->meta_title,
             'meta_description' => $pageSeo->meta_description,
@@ -111,6 +140,10 @@ class PageSeoController extends Controller
             'robots' => 'nullable|string|max:100',
             'schema_markup' => 'nullable|string',
         ]);
+
+        if (array_key_exists('description', $validated)) {
+            $validated['description'] = $this->cleanDescription($validated['description']);
+        }
 
         if ($request->hasFile('image')) {
             if ($pageSeo->image && str_starts_with($pageSeo->image, 'storage/')) {
@@ -175,7 +208,7 @@ class PageSeoController extends Controller
             'id' => $pageSeo->id,
             'page_name' => $pageSeo->page_name,
             'title' => $pageSeo->title,
-            'description' => $pageSeo->description,
+            'description' => $this->cleanDescription($pageSeo->description),
             'image' => $pageSeo->image_url,
             'meta_title' => $pageSeo->meta_title ?: $pageSeo->title,
             'meta_description' => $cleanMetaDesc,
